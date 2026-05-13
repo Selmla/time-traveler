@@ -1,0 +1,203 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   GLOBAL STYLES
+   ============================================================ */
+
+/* Safe area support for iPhones with notch/home indicator */
+:root {
+  --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-inset-top: env(safe-area-inset-top, 0px);
+
+  /* --------------------------------------------------------
+     NIGHT MODE (default) — dark navy HUD
+     surface-900 = deepest bg → surface-100 = near-white text
+  -------------------------------------------------------- */
+  color-scheme: dark;
+
+  --surface-900: 10 14 26;       /* #0a0e1a */
+  --surface-800: 15 23 42;       /* #0f172a */
+  --surface-700: 30 41 59;       /* #1e293b */
+  --surface-600: 51 65 85;       /* #334155 */
+  --surface-500: 71 85 105;      /* #475569 */
+  --surface-400: 100 116 139;    /* #64748b */
+  --surface-300: 148 163 184;    /* #94a3b8 */
+  --surface-200: 203 213 225;    /* #cbd5e1 */
+  --surface-100: 241 245 249;    /* #f1f5f9 — near-white primary text */
+
+  --status-ok:        34 197 94;     /* #22c55e green-500  */
+  --status-tight:     245 158 11;    /* #f59e0b amber-400  */
+  --status-at_risk:   239 68 68;     /* #ef4444 red-500    */
+  --status-missed:    107 114 128;   /* #6b7280 gray-500   */
+  --status-completed: 59 130 246;    /* #3b82f6 blue-500   */
+
+  --accent: 56 189 248;              /* #38bdf8 sky-400    */
+}
+
+/* --------------------------------------------------------
+   DAY MODE — high contrast, outdoor-readable light theme.
+   Surfaces invert (light fills replace dark). Status colors
+   darken one step so they remain legible on white backgrounds
+   (amber/green at their default saturation fail WCAG on white).
+-------------------------------------------------------- */
+[data-theme="day"] {
+  color-scheme: light;
+
+  /* Page bg is distinctly blue-gray so white cards visually pop without needing
+     heavy shadows. Borders are darkened so they hold at 50% opacity on light bg. */
+  --surface-900: 229 236 245;    /* #e5ecf5 — blue-gray page bg, clearly non-white */
+  --surface-800: 215 225 238;    /* #d7e1ee */
+  --surface-700: 255 255 255;    /* #ffffff — card surfaces (visibly white vs bg) */
+  --surface-600: 175 195 213;    /* #afc3d5 — borders (hold at /50 opacity on light bg) */
+  --surface-500: 100 116 139;    /* #64748b — muted text slate-500, ~4.6:1 on white */
+  --surface-400: 71 85 105;      /* #475569 — secondary text slate-600 */
+  --surface-300: 51 65 85;       /* #334155 — label text slate-700 */
+  --surface-200: 30 41 59;       /* #1e293b */
+  --surface-100: 15 23 42;       /* #0f172a — primary text (near-black) */
+
+  --status-ok:        21 128 61;     /* #15803d green-700  ~5:1 on white */
+  --status-tight:     161 98 7;      /* #a16207 amber-700  ~6:1 on white */
+  --status-at_risk:   185 28 28;     /* #b91c1c red-700    ~5:1 on white */
+  --status-missed:    55 65 81;      /* #374151 gray-700   ~12:1 on white */
+  --status-completed: 29 78 216;     /* #1d4ed8 blue-700   ~6:1 on white */
+
+  --accent: 2 132 199;               /* #0284c7 sky-600    ~4.5:1 on white */
+}
+
+/* --------------------------------------------------------
+   DAY MODE TEXT OVERRIDES
+   Flip `text-white` to near-black so all content text
+   (stop names, ETAs, labels) reads on light card surfaces.
+   Exception: restore white for text sitting on a colored
+   action-button background (confirmed-end, status buttons).
+-------------------------------------------------------- */
+[data-theme="day"] .text-white {
+  color: rgb(var(--surface-100)) !important;
+}
+
+[data-theme="day"] .bg-status-at_risk .text-white,
+[data-theme="day"] .bg-status-at_risk.text-white,
+[data-theme="day"] .bg-status-ok.text-white,
+[data-theme="day"] .bg-accent.text-white {
+  color: white !important;
+}
+
+/* --------------------------------------------------------
+   DAY MODE CARD ELEVATION
+   Cards (white on blue-gray bg) get a subtle shadow for
+   depth perception in bright daylight. Targets elements
+   that carry both bg-surface-700 and a border — the Card
+   primitive pattern — without touching non-card surfaces.
+-------------------------------------------------------- */
+[data-theme="day"] .bg-surface-700.border {
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.08), 0 3px 8px rgb(0 0 0 / 0.04);
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  height: 100%;
+  height: 100dvh; /* Dynamic viewport height — correct on mobile */
+}
+
+/* Safe area utilities */
+.pb-safe {
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+}
+
+.pt-safe {
+  padding-top: max(0px, env(safe-area-inset-top));
+}
+
+/* Smooth scrolling for all scrollable containers */
+* {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Prevent iOS text size adjustment */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Native-feeling inputs on mobile */
+input[type="time"],
+input[type="date"],
+input[type="number"],
+input[type="text"],
+textarea {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.5);
+}
+
+/* Range input styling */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: rgb(var(--surface-600));
+  border-radius: 4px;
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgb(var(--accent));
+  cursor: pointer;
+}
+
+/* Prevent pull-to-refresh on PWA */
+body {
+  overscroll-behavior-y: contain;
+}
+
+/* Custom scrollbar for desktop */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--surface-600));
+  border-radius: 2px;
+}
+
+/* Animation for sheets */
+@keyframes slideUp {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
