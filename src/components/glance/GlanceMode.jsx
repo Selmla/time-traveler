@@ -434,9 +434,20 @@ export default function GlanceMode({ trip, timeline, now, onClose, onMarkArrived
                 {showEtaEntry ? (
                   /* Degraded mode — ETA unknown; rider enters travel time directly from HUD */
                   <div className="px-4 py-3">
-                    <p className="text-surface-400 text-xs font-semibold uppercase tracking-wider mb-3">
-                      How long from Maps?
-                    </p>
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-surface-400 text-xs font-semibold uppercase tracking-wider">
+                        Travel time from Maps?
+                      </p>
+                      {cp?.address?.trim().length > 0 && (
+                        <button
+                          onClick={() => openNavigation(cp)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-700 text-white text-xs font-semibold rounded-lg border border-surface-600 active:scale-[0.96] transition-transform min-h-[56px]"
+                        >
+                          <Navigation size={12} />
+                          Open Maps
+                        </button>
+                      )}
+                    </div>
                     {etaCustomOpen ? (
                       /* Custom minute entry */
                       <div className="flex items-center gap-2">

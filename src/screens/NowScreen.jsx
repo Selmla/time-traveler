@@ -7,7 +7,7 @@ import { formatTime, formatBuffer, formatDuration, formatDate } from '../utils/t
 import { openNavigation } from '../utils/maps.js'
 import { STATUS, makeLegId } from '../engine/models.js'
 import { getProfile, profileCopy } from '../utils/tripProfile.js'
-import { renderWarning } from '../utils/warningCopy.js'
+import { renderWarning, renderConsequence } from '../utils/warningCopy.js'
 import {
   Card, StatusBadge, StatusDot, Button, TimeBig, BufferMeter,
   AlertBanner, CheckpointTypeIcon, EmptyState
