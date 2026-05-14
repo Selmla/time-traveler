@@ -926,7 +926,7 @@ function MapsEstimateButton({ legId, fromAddress, destAddress, travelMode }) {
       )}
       {result && status === 'idle' && (
         <p className="text-xs text-status-ok mt-0.5">
-          ✓ {result.minutes} min{result.distanceKm != null ? ` · ${result.distanceKm} km` : ''} — saved to timeline
+          ✓ {result.minutes} min{result.distanceKm != null ? ` · ${result.distanceKm} km` : ''}{legId ? ' — saved to timeline' : ' — save checkpoint to apply'}
         </p>
       )}
     </div>

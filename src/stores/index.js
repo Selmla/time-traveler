@@ -182,7 +182,6 @@ export const useSessionStore = create(
       isRunning:         true,
       startedAt:         Date.now(),
       checkpointActuals: {},
-      legData:           {},
       whatIfActive:      false,
       actionHistory:     [],
     })
