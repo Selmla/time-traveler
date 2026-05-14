@@ -32,6 +32,8 @@ export default function TripsScreen() {
     const trip = addTrip(tripData)
     openTrip(trip.id)
     setCreating(false)
+    setConfirmDeleteId(null)
+    setConfirmEndId(null)
   }
 
   return (

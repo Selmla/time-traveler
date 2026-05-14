@@ -26,7 +26,7 @@ export default function App() {
   }, [theme])
 
   return (
-    <div className="flex flex-col h-screen bg-surface-900 text-white select-none overflow-hidden">
+    <div className="flex flex-col h-dvh bg-surface-900 text-white select-none overflow-hidden">
 
       {/* Main content area */}
       <main className="flex-1 overflow-hidden">
