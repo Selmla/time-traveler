@@ -288,6 +288,7 @@ function PlanTimelineView({ trip }) {
 function CheckpointEditor({ trip, checkpointId, onClose }) {
   const addCheckpoint    = useTripStore(s => s.addCheckpoint)
   const updateCheckpoint = useTripStore(s => s.updateCheckpoint)
+  const updateLeg        = useSessionStore(s => s.updateLeg)
 
   const existing = checkpointId
     ? trip.checkpoints.find(c => c.id === checkpointId)
@@ -295,12 +296,22 @@ function CheckpointEditor({ trip, checkpointId, onClose }) {
 
   // If editing, go straight to the form. If adding, show kind picker first.
   const [kind, setKind] = useState(existing?.kind || null)
+  // Holds a Maps estimate made before the checkpoint was saved (legId was null).
+  // Applied immediately after addCheckpoint() returns the real checkpoint ID.
+  const [pendingEstimate, setPendingEstimate] = useState(null)
 
   const handleSave = (data) => {
     if (existing) {
       updateCheckpoint(trip.id, checkpointId, data)
     } else {
-      addCheckpoint(trip.id, data)
+      const newCp = addCheckpoint(trip.id, data)
+      if (pendingEstimate) {
+        const fromId = fromCheckpoint ? fromCheckpoint.id : 'origin'
+        const newLegId = makeLegId(fromId, newCp.id)
+        const legUpdate = { travelTimeMinutes: pendingEstimate.travelTimeMinutes, source: 'google' }
+        if (pendingEstimate.distanceKm != null) legUpdate.distanceText = `${pendingEstimate.distanceKm} km`
+        updateLeg(newLegId, legUpdate)
+      }
     }
     onClose()
   }
@@ -338,6 +349,7 @@ function CheckpointEditor({ trip, checkpointId, onClose }) {
             onBack={existing ? null : () => setKind(null)}
             legId={legId}
             fromAddress={fromAddress}
+            onEstimate={setPendingEstimate}
           />
         )}
       </div>
@@ -418,7 +430,7 @@ function KindPicker({ onPick, onClose }) {
 // STEP 2 — Kind-specific form
 // ============================================================
 
-function CheckpointForm({ kind, existing, onSave, onClose, onBack, legId, fromAddress }) {
+function CheckpointForm({ kind, existing, onSave, onClose, onBack, legId, fromAddress, onEstimate }) {
   const [form, setForm] = useState(() => existing || createCheckpoint({ kind }))
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }))
 
@@ -508,7 +520,7 @@ function CheckpointForm({ kind, existing, onSave, onClose, onBack, legId, fromAd
 
         {/* Travel leg — mode selector + mode-aware time label */}
         {kind !== CHECKPOINT_KIND.END && (
-          <TravelLegFields form={form} set={set} legId={legId} fromAddress={fromAddress} />
+          <TravelLegFields form={form} set={set} legId={legId} fromAddress={fromAddress} onEstimate={onEstimate} />
         )}
 
         {/* Notes — shared */}
@@ -808,7 +820,7 @@ function travelTimeLabelFor(mode) {
   }
 }
 
-function TravelLegFields({ form, set, legId, fromAddress }) {
+function TravelLegFields({ form, set, legId, fromAddress, onEstimate }) {
   const mode = form.travelModeToNext ?? null  // null = unknown
   const destAddress = form.address?.trim() || form.name?.trim() || ''
 
@@ -851,6 +863,7 @@ function TravelLegFields({ form, set, legId, fromAddress }) {
         fromAddress={fromAddress || ''}
         destAddress={destAddress}
         travelMode={mode}
+        onEstimate={onEstimate}
       />
     </div>
   )
@@ -860,7 +873,7 @@ function TravelLegFields({ form, set, legId, fromAddress }) {
 // Maps estimate button — calls /api/travel-time on tap
 // ============================================================
 
-function MapsEstimateButton({ legId, fromAddress, destAddress, travelMode }) {
+function MapsEstimateButton({ legId, fromAddress, destAddress, travelMode, onEstimate }) {
   const updateLeg = useSessionStore(s => s.updateLeg)
   const [status, setStatus]   = useState('idle')  // 'idle' | 'loading' | 'error'
   const [errorMsg, setErrorMsg] = useState('')
@@ -901,6 +914,10 @@ function MapsEstimateButton({ legId, fromAddress, destAddress, travelMode }) {
         if (data.distanceKm != null) legUpdate.distanceText = `${data.distanceKm} km`
         updateLeg(legId, legUpdate)
       }
+
+      // For new (unsaved) checkpoints, legId is null. Bubble up to CheckpointEditor
+      // so it can call updateLeg after addCheckpoint() returns the real ID.
+      onEstimate?.({ travelTimeMinutes: data.travelTimeMinutes, distanceKm: data.distanceKm })
 
       setResult({ minutes: data.travelTimeMinutes, distanceKm: data.distanceKm })
       setStatus('idle')
