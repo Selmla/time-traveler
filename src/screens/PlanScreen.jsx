@@ -165,7 +165,7 @@ function CheckpointList({ trip, onAdd, onEdit }) {
       <EmptyState
         icon={Plus}
         title="No stops yet"
-        description="Add your first checkpoint to start building the timeline."
+        description="Add a ferry, hotel check-in, or any stop with a deadline. One stop is enough to start tracking."
         action={<Button onClick={onAdd}><Plus size={16} /> Add first stop</Button>}
       />
     )
@@ -273,7 +273,7 @@ function PlanTimelineView({ trip }) {
   if (!timeline || timeline.entries.length === 0) {
     return (
       <p className="text-surface-500 text-sm text-center py-8">
-        Add checkpoints to see the timeline preview
+        Add stops to see the timeline preview
       </p>
     )
   }
@@ -377,8 +377,8 @@ const KIND_OPTIONS = [
   {
     kind: CHECKPOINT_KIND.DEPARTURE_DEADLINE,
     icon: '⏱️',
-    label: 'Connection or Deadline',
-    desc: 'Ferry, flight, train, hotel check-in, event…',
+    label: 'Ferry / train / flight',
+    desc: 'Anything with a fixed departure you must not miss',
   },
   {
     kind: CHECKPOINT_KIND.OPENING_HOURS,
@@ -510,7 +510,7 @@ function CheckpointForm({ kind, existing, onSave, onClose, onBack, legId, fromAd
           <FormField label="Address (optional)">
             <input
               type="text"
-              placeholder="For navigation (optional)"
+              placeholder="Full address — used for Maps estimates and navigation"
               value={form.address || ''}
               onChange={e => set('address', e.target.value)}
               className={inputCls}
@@ -852,7 +852,7 @@ function TravelLegFields({ form, set, legId, fromAddress, onEstimate }) {
         <input
           type="number"
           min="0"
-          placeholder="Leave blank to enter later"
+          placeholder="Minutes — or use Estimate from Maps below"
           value={form.travelTimeToNext ?? ''}
           onChange={e => set('travelTimeToNext', e.target.value !== '' ? Number(e.target.value) : null)}
           className={inputCls}

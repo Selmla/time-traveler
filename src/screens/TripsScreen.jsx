@@ -52,9 +52,9 @@ export default function TripsScreen() {
         {trips.length === 0 ? (
           <EmptyState
             icon={Route}
-            title="No trips yet"
-            description="Plan a road trip or day out and let Time Traveler track your timeline."
-            action={<Button onClick={() => setCreating(true)}><Plus size={16} />Create first trip</Button>}
+            title="Got somewhere to be?"
+            description="Add a ferry, hotel check-in, or any deadline you can't miss. Time Traveler tells you if you'll make it — one stop is enough to get started."
+            action={<Button onClick={() => setCreating(true)}><Plus size={16} />Plan my first trip</Button>}
           />
         ) : (
           <div className="space-y-3">
@@ -225,6 +225,8 @@ function CreateTripSheet({ onClose, onCreate }) {
     }
   })
 
+  const [showAdvanced, setShowAdvanced] = useState(false)
+
   const set       = (key, val)      => setForm(f => ({ ...f, [key]: val }))
   const setOrigin = (key, val)      => setForm(f => ({ ...f, origin: { ...f.origin, [key]: val } }))
 
@@ -275,7 +277,7 @@ function CreateTripSheet({ onClose, onCreate }) {
                 <label className="text-xs text-surface-500 uppercase tracking-wider mb-1.5 block">Address (optional)</label>
                 <input
                   type="text"
-                  placeholder="For navigation (optional)"
+                  placeholder="Full address — enables Maps estimates"
                   value={form.origin.address}
                   onChange={e => setOrigin('address', e.target.value)}
                   className="w-full bg-surface-700 border border-surface-600 rounded-xl px-4 py-3 text-white placeholder-surface-500 focus:outline-none focus:border-accent text-sm"
@@ -295,7 +297,7 @@ function CreateTripSheet({ onClose, onCreate }) {
                 />
               </div>
               <div className="flex-1">
-                <label className="text-xs text-surface-500 uppercase tracking-wider mb-1.5 block">Start time</label>
+                <label className="text-xs text-surface-500 uppercase tracking-wider mb-1.5 block">Leaving at</label>
                 <input
                   type="time"
                   value={form.startTime}
@@ -330,32 +332,44 @@ function CreateTripSheet({ onClose, onCreate }) {
               </div>
             </div>
 
-            {/* Buffer */}
+            {/* Advanced — buffer settings hidden by default */}
             <div>
-              <label className="text-xs text-surface-500 uppercase tracking-wider mb-1.5 block">
-                How early do you like to arrive at connections?
-              </label>
-              <input
-                type="range"
-                min="5"
-                max="60"
-                step="5"
-                value={form.defaultBuffer}
-                onChange={e => set('defaultBuffer', Number(e.target.value))}
-                className="w-full accent-accent"
-              />
-              <div className="flex justify-between text-xs text-surface-500 mt-1">
-                <span>Cutting it close</span>
-                <span>Plenty of time</span>
-              </div>
-              <p className="text-xs text-white font-medium mt-1">
-                {form.defaultBuffer}m early — {
-                  form.defaultBuffer <= 5  ? 'cutting it close' :
-                  form.defaultBuffer <= 15 ? 'balanced' :
-                  form.defaultBuffer <= 30 ? 'comfortable' :
-                  'plenty of time'
-                }
-              </p>
+              <button
+                type="button"
+                onClick={() => setShowAdvanced(v => !v)}
+                className="flex items-center gap-1.5 text-xs text-surface-500 hover:text-surface-300 transition-colors"
+              >
+                <span>{showAdvanced ? '▲' : '▼'}</span>
+                Advanced settings
+              </button>
+              {showAdvanced && (
+                <div className="mt-3">
+                  <label className="text-xs text-surface-500 uppercase tracking-wider mb-1.5 block">
+                    Time cushion at connections
+                  </label>
+                  <input
+                    type="range"
+                    min="5"
+                    max="60"
+                    step="5"
+                    value={form.defaultBuffer}
+                    onChange={e => set('defaultBuffer', Number(e.target.value))}
+                    className="w-full accent-accent"
+                  />
+                  <div className="flex justify-between text-xs text-surface-500 mt-1">
+                    <span>Tight</span>
+                    <span>Comfortable</span>
+                  </div>
+                  <p className="text-xs text-white font-medium mt-1">
+                    Arrive {form.defaultBuffer} min before each deadline — {
+                      form.defaultBuffer <= 5  ? 'cutting it close' :
+                      form.defaultBuffer <= 15 ? 'balanced' :
+                      form.defaultBuffer <= 30 ? 'comfortable' :
+                      'plenty of time'
+                    }
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
