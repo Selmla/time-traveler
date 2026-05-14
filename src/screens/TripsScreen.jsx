@@ -206,16 +206,23 @@ function TripCard({
 // ============================================================
 
 function CreateTripSheet({ onClose, onCreate }) {
-  const [form, setForm] = useState({
-    title:         '',
-    date:          new Date().toISOString().split('T')[0],
-    startTime:     '09:00',
-    tripProfile:   TRIP_PROFILE.ROADTRIP,
-    mode:          TRIP_MODE.ROAD_TRIP,
-    transportMode: TRANSPORT_MODE.CAR,
-    defaultBuffer: 15,
-    minBuffer:     5,
-    origin: { name: '', address: '', lat: null, lng: null },
+  const [form, setForm] = useState(() => {
+    const now         = new Date()
+    const totalMins   = now.getHours() * 60 + now.getMinutes()
+    const roundedMins = Math.round(totalMins / 5) * 5
+    const h           = Math.floor(roundedMins / 60) % 24
+    const m           = roundedMins % 60
+    return {
+      title:         '',
+      date:          now.toISOString().split('T')[0],
+      startTime:     `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`,
+      tripProfile:   TRIP_PROFILE.ROADTRIP,
+      mode:          TRIP_MODE.ROAD_TRIP,
+      transportMode: TRANSPORT_MODE.CAR,
+      defaultBuffer: 15,
+      minBuffer:     5,
+      origin: { name: '', address: '', lat: null, lng: null },
+    }
   })
 
   const set       = (key, val)      => setForm(f => ({ ...f, [key]: val }))
