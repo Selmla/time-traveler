@@ -12,13 +12,26 @@ import { parseTime, addMinutes, diffMinutes } from '../utils/time.js'
 // MAIN EXPORT
 // ============================================================
 
-export function calculateTimeline(trip, sessionData = {}, legData = {}, now = new Date(), sessionIsActive = false) {
+export function calculateTimeline(trip, sessionData = {}, legData = {}, now = new Date(), sessionIsActive = false, startedAt = null) {
   if (!trip || !trip.checkpoints || trip.checkpoints.length === 0) {
     return emptyResult()
   }
 
   const entries = []
-  let runningTime = parseTime(trip.startTime, trip.date) || now
+  const plannedStart = parseTime(trip.startTime, trip.date)
+
+  // Effective departure baseline: planned start time by default.
+  // When the session is active and the rider actually left LATER than planned,
+  // advance the baseline to startedAt so downstream ETAs reflect reality.
+  // If startedAt is earlier than planned (pre-configured session, early departure),
+  // keep the planned time — conservative and correct for deadline math.
+  let runningTime = plannedStart || now
+  if (sessionIsActive && startedAt) {
+    const actualStart = new Date(startedAt)
+    if (!plannedStart || actualStart > plannedStart) {
+      runningTime = actualStart
+    }
+  }
 
   // First leg: origin → first checkpoint.
   // START kind = the checkpoint IS the departure point; its "arrival" is startTime.
@@ -600,7 +613,7 @@ function emptyResult() {
 // WHAT-IF SIMULATION
 // ============================================================
 
-export function simulateDelay(trip, checkpointId, extraMinutes, sessionData = {}, legData = {}, now = new Date(), sessionIsActive = false) {
+export function simulateDelay(trip, checkpointId, extraMinutes, sessionData = {}, legData = {}, now = new Date(), sessionIsActive = false, startedAt = null) {
   const modifiedTrip = {
     ...trip,
     checkpoints: trip.checkpoints.map(cp => {
@@ -613,5 +626,5 @@ export function simulateDelay(trip, checkpointId, extraMinutes, sessionData = {}
       }
     }),
   }
-  return calculateTimeline(modifiedTrip, sessionData, legData, now, sessionIsActive)
+  return calculateTimeline(modifiedTrip, sessionData, legData, now, sessionIsActive, startedAt)
 }

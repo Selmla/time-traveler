@@ -26,6 +26,7 @@ export function useTimeline(tripId) {
   const legData      = useSessionStore(state => state.legData)
   const isRunning    = useSessionStore(state => state.isRunning)
   const activeTripId = useSessionStore(state => state.activeTripId)
+  const startedAt    = useSessionStore(state => state.startedAt)
   const whatIfActive  = useSessionStore(state => state.whatIfActive)
   const whatIfCpId    = useSessionStore(state => state.whatIfCheckpointId)
   const whatIfMinutes = useSessionStore(state => state.whatIfExtraMinutes)
@@ -55,13 +56,13 @@ export function useTimeline(tripId) {
 
   const timeline = useMemo(() => {
     if (!trip) return null
-    return calculateTimeline(trip, actuals, legData, now, tripIsActive)
-  }, [trip, actuals, legData, now, tripIsActive])
+    return calculateTimeline(trip, actuals, legData, now, tripIsActive, startedAt)
+  }, [trip, actuals, legData, now, tripIsActive, startedAt])
 
   const whatIfTimeline = useMemo(() => {
     if (!whatIfActive || !trip || !whatIfCpId) return null
-    return simulateDelay(trip, whatIfCpId, whatIfMinutes, actuals, legData, now, tripIsActive)
-  }, [whatIfActive, trip, whatIfCpId, whatIfMinutes, actuals, legData, now, tripIsActive])
+    return simulateDelay(trip, whatIfCpId, whatIfMinutes, actuals, legData, now, tripIsActive, startedAt)
+  }, [whatIfActive, trip, whatIfCpId, whatIfMinutes, actuals, legData, now, tripIsActive, startedAt])
 
   return {
     trip,

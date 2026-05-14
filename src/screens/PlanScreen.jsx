@@ -1,8 +1,8 @@
 import React, { useState } from 'react'
-import { Plus, ChevronLeft, Play, ArrowUp, ArrowDown, Trash2, Edit3, Clock, Lock, AlertTriangle } from 'lucide-react'
+import { Plus, ChevronLeft, Play, ArrowUp, ArrowDown, Trash2, Edit3, Clock, Lock, AlertTriangle, MapPin } from 'lucide-react'
 import { useTripStore, useSessionStore, useUIStore } from '../stores/index.js'
 import { useTimeline } from '../hooks/useTimeline.js'
-import { CHECKPOINT_KIND, DEPARTURE_MODE, DEFAULT_BUFFERS, TRAVEL_MODE, createCheckpoint } from '../engine/models.js'
+import { CHECKPOINT_KIND, DEPARTURE_MODE, DEFAULT_BUFFERS, TRAVEL_MODE, createCheckpoint, makeLegId } from '../engine/models.js'
 import { formatDate } from '../utils/time.js'
 import { Card, Button, StatusDot, CheckpointTypeIcon, EmptyState } from '../components/ui/index.jsx'
 import TimelineView from '../components/timeline/TimelineView.jsx'
@@ -305,6 +305,20 @@ function CheckpointEditor({ trip, checkpointId, onClose }) {
     onClose()
   }
 
+  // Context for the Maps estimate button — resolved from trip position.
+  // cpIndex: position of this checkpoint in the list; treat new cp as appended at end.
+  const cpIndex = checkpointId
+    ? trip.checkpoints.findIndex(c => c.id === checkpointId)
+    : trip.checkpoints.length
+  const fromCheckpoint = cpIndex > 0 ? trip.checkpoints[cpIndex - 1] : null
+  const fromAddress = fromCheckpoint
+    ? (fromCheckpoint.address?.trim() || fromCheckpoint.name || '')
+    : (trip.origin?.address?.trim() || trip.origin?.name || '')
+  // legId is only available when editing an existing checkpoint (has a real id)
+  const legId = checkpointId && cpIndex >= 0
+    ? makeLegId(cpIndex > 0 ? trip.checkpoints[cpIndex - 1].id : 'origin', checkpointId)
+    : null
+
   return (
     <>
       <div className="fixed inset-0 bg-black/60 z-40" onClick={onClose} />
@@ -322,6 +336,8 @@ function CheckpointEditor({ trip, checkpointId, onClose }) {
             onSave={handleSave}
             onClose={onClose}
             onBack={existing ? null : () => setKind(null)}
+            legId={legId}
+            fromAddress={fromAddress}
           />
         )}
       </div>
@@ -402,7 +418,7 @@ function KindPicker({ onPick, onClose }) {
 // STEP 2 — Kind-specific form
 // ============================================================
 
-function CheckpointForm({ kind, existing, onSave, onClose, onBack }) {
+function CheckpointForm({ kind, existing, onSave, onClose, onBack, legId, fromAddress }) {
   const [form, setForm] = useState(() => existing || createCheckpoint({ kind }))
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }))
 
@@ -492,7 +508,7 @@ function CheckpointForm({ kind, existing, onSave, onClose, onBack }) {
 
         {/* Travel leg — mode selector + mode-aware time label */}
         {kind !== CHECKPOINT_KIND.END && (
-          <TravelLegFields form={form} set={set} />
+          <TravelLegFields form={form} set={set} legId={legId} fromAddress={fromAddress} />
         )}
 
         {/* Notes — shared */}
@@ -792,8 +808,9 @@ function travelTimeLabelFor(mode) {
   }
 }
 
-function TravelLegFields({ form, set }) {
+function TravelLegFields({ form, set, legId, fromAddress }) {
   const mode = form.travelModeToNext ?? null  // null = unknown
+  const destAddress = form.address?.trim() || form.name?.trim() || ''
 
   return (
     <div className="space-y-2">
@@ -829,6 +846,89 @@ function TravelLegFields({ form, set }) {
           className={inputCls}
         />
       </FormField>
+      <MapsEstimateButton
+        legId={legId}
+        fromAddress={fromAddress || ''}
+        destAddress={destAddress}
+        travelMode={mode}
+      />
+    </div>
+  )
+}
+
+// ============================================================
+// Maps estimate button — calls /api/travel-time on tap
+// ============================================================
+
+function MapsEstimateButton({ legId, fromAddress, destAddress, travelMode }) {
+  const updateLeg = useSessionStore(s => s.updateLeg)
+  const [status, setStatus]   = useState('idle')  // 'idle' | 'loading' | 'error'
+  const [errorMsg, setErrorMsg] = useState('')
+  const [result, setResult]   = useState(null)     // { minutes, distanceKm } on success
+
+  const canEstimate = fromAddress.trim().length > 0 && destAddress.trim().length > 0
+
+  const handleEstimate = async () => {
+    if (!canEstimate || status === 'loading') return
+    setStatus('loading')
+    setErrorMsg('')
+    setResult(null)
+
+    try {
+      const res = await fetch('/api/travel-time', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          originAddress: fromAddress,
+          destAddress,
+          travelMode: travelMode || 'driving',
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok || data.error) {
+        setErrorMsg(data.message || 'Could not get estimate from Maps')
+        setStatus('error')
+        return
+      }
+
+      // Update session store — the engine reacts immediately via legData.
+      // Intentionally does NOT write to form's travelTimeToNext: that field
+      // stores the OUTGOING leg time; this estimate is the INCOMING leg.
+      if (legId) {
+        const legUpdate = { travelTimeMinutes: data.travelTimeMinutes, source: 'google' }
+        if (data.distanceKm != null) legUpdate.distanceText = `${data.distanceKm} km`
+        updateLeg(legId, legUpdate)
+      }
+
+      setResult({ minutes: data.travelTimeMinutes, distanceKm: data.distanceKm })
+      setStatus('idle')
+    } catch {
+      setErrorMsg('Network error — check your connection')
+      setStatus('error')
+    }
+  }
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={handleEstimate}
+        disabled={!canEstimate || status === 'loading'}
+        className="flex items-center gap-1.5 text-xs font-medium text-accent hover:text-accent/80 disabled:text-surface-500 disabled:cursor-not-allowed transition-colors py-1"
+      >
+        <MapPin size={11} className={status === 'loading' ? 'animate-pulse' : ''} />
+        {status === 'loading' ? 'Estimating…' : 'Estimate from Maps'}
+      </button>
+      {status === 'error' && (
+        <p className="text-xs text-status-at_risk mt-0.5">{errorMsg}</p>
+      )}
+      {result && status === 'idle' && (
+        <p className="text-xs text-status-ok mt-0.5">
+          ✓ {result.minutes} min{result.distanceKm != null ? ` · ${result.distanceKm} km` : ''} — saved to timeline
+        </p>
+      )}
     </div>
   )
 }
