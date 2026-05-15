@@ -6,7 +6,7 @@
 // ============================================================
 
 import { CHECKPOINT_KIND, STATUS, WARNING_TYPE, makeLegId } from './models.js'
-import { parseTime, addMinutes, diffMinutes } from '../utils/time.js'
+import { parseTime, addMinutes, diffMinutes, toLocalISODate } from '../utils/time.js'
 
 // ============================================================
 // MAIN EXPORT
@@ -58,7 +58,12 @@ export function calculateTimeline(trip, sessionData = {}, legData = {}, now = ne
   for (let i = 0; i < trip.checkpoints.length; i++) {
     const cp      = trip.checkpoints[i]
     const session = sessionData[cp.id] || {}
-    const entry   = buildEntry(cp, i, runningTime, trip, session)
+    // Use the local calendar date of runningTime as the date for this checkpoint's
+    // HH:MM fields (departureTime, opensAt, appointmentTime, etc.). When a trip
+    // crosses midnight, runningTime is already on the next day — parseTime must use
+    // that date or deadlines will be ~24h in the past and buffers will be ~-1440m.
+    const checkpointDate = runningTime ? toLocalISODate(runningTime) : trip.date
+    const entry   = buildEntry(cp, i, runningTime, trip, session, checkpointDate)
     entries.push(entry)
 
     // Outgoing leg: from cp[i] to cp[i+1], used to compute the next runningTime
@@ -91,8 +96,8 @@ export function calculateTimeline(trip, sessionData = {}, legData = {}, now = ne
 // ENTRY BUILDER
 // ============================================================
 
-function buildEntry(cp, index, runningTime, trip, session) {
-  const date = trip.date
+function buildEntry(cp, index, runningTime, trip, session, checkpointDate) {
+  const date = checkpointDate ?? trip.date
   const kind = cp.kind || CHECKPOINT_KIND.NORMAL_STOP
 
   // Session status set by the user
@@ -381,9 +386,8 @@ function generateWarnings(entries, trip) {
     }
 
     if (cp.kind === CHECKPOINT_KIND.OPENING_HOURS && entry.estimatedArrival) {
-      if (cp.opensAt) {
-        const opens = parseTime(cp.opensAt, trip.date)
-        if (opens && entry.estimatedArrival < opens) {
+      if (cp.opensAt && entry.plannedArrival) {
+        if (entry.estimatedArrival < entry.plannedArrival) {
           warnings.push({ type: WARNING_TYPE.ARRIVES_BEFORE_OPEN, opensAt: cp.opensAt })
         }
       }

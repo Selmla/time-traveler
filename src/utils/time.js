@@ -132,6 +132,20 @@ export function todayISO() {
 }
 
 /**
+ * Extract local calendar date from a Date object as "YYYY-MM-DD".
+ * Uses local time (getFullYear/Month/Date), NOT toISOString() which is UTC
+ * and would return the wrong date in timezones behind UTC.
+ * @param {Date} date
+ * @returns {string}
+ */
+export function toLocalISODate(date) {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+/**
  * Format date for display: "Mon 12 Jan"
  */
 export function formatDate(dateStr) {
