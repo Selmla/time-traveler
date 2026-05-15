@@ -242,12 +242,14 @@ export default function GlanceMode({ trip, timeline, now, onClose, onMarkArrived
 
   // Travel progression — elapsed / remaining / progress bar; only when traveling with known leg duration
   const legTotalMins  = !isArrived ? (timeline.currentLeg?.travelTimeMinutes ?? null) : null
-  const legRemaining  = !isArrived && !next?.etaUncertain
-    ? (timeline.currentLeg?.minsRemaining ?? null)
-    : null
   const legDepartTime = !isArrived ? (timeline.currentLeg?.departureTime ?? null) : null
   const legElapsed    = legDepartTime
     ? Math.max(0, Math.round((now - legDepartTime) / 60000))
+    : null
+  // Derive remaining from (total − elapsed) so the three values are always internally
+  // consistent regardless of whether the ETA engine used plannedStart or startedAt.
+  const legRemaining  = legElapsed != null && legTotalMins != null && !next?.etaUncertain
+    ? Math.max(0, legTotalMins - legElapsed)
     : null
   const legProgress   = legElapsed != null && legTotalMins != null && legTotalMins > 0
     ? Math.min(100, Math.max(0, Math.round((legElapsed / legTotalMins) * 100)))

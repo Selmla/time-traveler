@@ -81,7 +81,7 @@ export function calculateTimeline(trip, sessionData = {}, legData = {}, now = ne
     nextStop,
     nextCheckpoint:  nextStop,   // backward-compat alias — consumers migrate to nextStop
     nextCritical:    getNextCritical(entries),
-    currentLeg:      getCurrentLeg(entries, trip, now, legData, sessionIsActive),
+    currentLeg:      getCurrentLeg(entries, trip, now, legData, sessionIsActive, startedAt),
     totalBufferMins: getTotalBuffer(entries),
     consequence:     getConsequence(entries, trip, sessionIsActive),
   }
@@ -499,7 +499,7 @@ function getConsequence(entries, trip, sessionIsActive) {
 
 // The leg the traveler is currently on: last completed stop → next pending stop.
 // Returns null when arrived at a stop (traveler is stationary, not in motion).
-function getCurrentLeg(entries, trip, now, legData = {}, sessionIsActive = false) {
+function getCurrentLeg(entries, trip, now, legData = {}, sessionIsActive = false, startedAt = null) {
   // Arrived at a stop → stationary, no active leg
   if (entries.some(e => e.status === STATUS.ARRIVED)) return null
 
@@ -550,10 +550,12 @@ function getCurrentLeg(entries, trip, now, legData = {}, sessionIsActive = false
     ?? (!lastDone ? (trip.origin?.travelModeToFirst ?? null) : null)
     ?? 'unknown'
 
-  // Departure time: when we left the from-point (actual or estimated)
+  // Departure time: when we left the from-point (actual or estimated).
+  // First leg (lastDone = null): use startedAt (actual press of "I'm leaving") when available,
+  // so elapsed/progress calculations reflect real physical travel time rather than planned time.
   const departureTime = lastDone
     ? (lastDone.actualDeparture || lastDone.estimatedDeparture)
-    : parseTimeOnDate(trip.startTime, new Date(trip.date + 'T12:00:00'))
+    : (startedAt ? new Date(startedAt) : parseTimeOnDate(trip.startTime, new Date(trip.date + 'T12:00:00')))
 
   const minsRemaining = next.estimatedArrival && now && !next.etaUncertain
     ? Math.max(0, Math.round((next.estimatedArrival - now) / 60000))
