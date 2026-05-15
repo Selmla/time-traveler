@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useDepartConfirm } from '../../hooks/useDepartConfirm.js'
-import { X, Navigation, CheckCircle, ArrowRight, Sun, Moon } from 'lucide-react'
+import { X, Navigation, CheckCircle, Sun, Moon } from 'lucide-react'
 import { formatTime, addMinutes } from '../../utils/time.js'
 import { openNavigation } from '../../utils/maps.js'
 import { STATUS, makeLegId } from '../../engine/models.js'
@@ -21,6 +21,15 @@ function legModeText(minutes, mode) {
   if (mode === 'cycling') return `${prefix} ride`
   if (mode === 'transit') return `${prefix} by transit`
   return `${prefix} away`
+}
+
+function deadlineLabel(kind, mode) {
+  if (kind === 'departure_deadline') {
+    const labels = { ferry: 'Ferry departs', train: 'Train departs', flight: 'Flight departs', bus: 'Bus departs' }
+    return labels[mode] ?? 'Departs'
+  }
+  if (kind === 'fixed_appointment') return 'Appointment'
+  return 'Deadline'
 }
 
 export default function GlanceMode({ trip, timeline, now, onClose, onMarkArrived, onMarkDeparted }) {
@@ -197,6 +206,13 @@ export default function GlanceMode({ trip, timeline, now, onClose, onMarkArrived
 
   // Next stop after current — for "what comes next" context in stop panel
   const afterCurrent = isArrived && nextIdx >= 0
+    ? entries.slice(nextIdx + 1).find(e =>
+        e.status !== STATUS.COMPLETED && e.status !== STATUS.SKIPPED
+      )
+    : null
+
+  // Stop after the one we're currently traveling toward — fills dead space in traveling state
+  const afterNext = !isArrived && nextIdx >= 0
     ? entries.slice(nextIdx + 1).find(e =>
         e.status !== STATUS.COMPLETED && e.status !== STATUS.SKIPPED
       )
@@ -538,7 +554,7 @@ export default function GlanceMode({ trip, timeline, now, onClose, onMarkArrived
                           {legElapsed != null ? <span>Traveling for {legElapsed}m</span> : <span />}
                           {legRemaining != null ? <span>{legRemaining}m left</span> : <span />}
                         </div>
-                        <div className="h-1.5 bg-surface-700 rounded-full overflow-hidden">
+                        <div className="h-2 bg-surface-700 rounded-full overflow-hidden">
                           <div
                             className={`h-full rounded-full transition-all duration-[2000ms] ${isDanger ? 'bg-status-at_risk' : isWarning ? 'bg-status-tight' : 'bg-status-ok'}`}
                             style={{ width: `${legProgress}%` }}
@@ -549,32 +565,52 @@ export default function GlanceMode({ trip, timeline, now, onClose, onMarkArrived
                   </>
                 )}
                 {bufferStr && (
-                  <div className="flex justify-between items-center px-4 py-3">
+                  <div className="flex justify-between items-center px-4 py-3 border-b border-surface-700/50">
                     <span className="text-surface-300 text-sm font-medium">Deadline buffer</span>
                     <span className={`font-mono font-bold text-2xl ${bufferColor}`}>{bufferStr}</span>
+                  </div>
+                )}
+                {next.deadlineTime && (
+                  <div className="flex justify-between items-center px-4 py-3">
+                    <span className="text-surface-400 text-sm">{deadlineLabel(next.kind, cp?.departureMode)}</span>
+                    <span className="font-mono text-white font-semibold text-lg">{formatTime(next.deadlineTime)}</span>
                   </div>
                 )}
               </div>
 
             )}
 
-            {/* Latest safe arrival — traveling only */}
-            {!isArrived && next.latestSafeArrival && (
+            {/* Latest safe arrival — only surface when margin is tight; abundant buffer makes it redundant noise */}
+            {!isArrived && next.latestSafeArrival && (isDanger || isWarning || (totalBuffer !== null && totalBuffer < 20)) && (
               <div className="flex items-baseline gap-2">
                 <span className="text-surface-300 text-sm font-medium">Arrive by</span>
                 <span className={`font-mono font-bold ${
-                  isDanger                                   ? 'text-2xl text-status-at_risk'
-                  : totalBuffer !== null && totalBuffer < 5  ? 'text-xl text-status-at_risk'
-                  : 'text-xl text-status-tight'
+                  isDanger || (totalBuffer !== null && totalBuffer <= 0) ? 'text-2xl text-status-at_risk'
+                  : totalBuffer !== null && totalBuffer < 10             ? 'text-xl text-status-at_risk'
+                  : totalBuffer !== null && totalBuffer < 20             ? 'text-xl text-status-tight'
+                  : 'text-xl text-surface-300'
                 }`}>
                   {formatTime(next.latestSafeArrival)}
                 </span>
               </div>
             )}
 
-            {/* Directive — traveling only; stop panel handles arrived state */}
-            {!isArrived && (
+            {/* Directive — only when it adds information beyond the headline (suppress generic "Keep going" in calm OK state) */}
+            {!isArrived && (isUncertain || isRunningLate || isWarning || isDanger) && (
               <p className={`font-bold ${headlineColor} ${isDanger ? 'text-xl' : 'text-lg'}`}>{directive}</p>
+            )}
+
+            {/* After this stop — fills dead space and completes the mental picture */}
+            {afterNext && (
+              <div className="flex justify-between items-center bg-surface-800/50 rounded-xl px-4 py-3">
+                <div className="min-w-0">
+                  <span className="text-surface-500 text-[10px] uppercase tracking-wider font-semibold">After this</span>
+                  <p className="text-surface-300 text-sm font-medium mt-0.5 truncate max-w-[180px]">{afterNext.checkpointName}</p>
+                </div>
+                <span className="font-mono text-surface-400 text-sm flex-shrink-0">
+                  {afterNext.etaUncertain ? '—?' : afterNext.estimatedArrival ? formatTime(afterNext.estimatedArrival) : '—'}
+                </span>
+              </div>
             )}
 
             {/* Mini timeline strip */}
