@@ -224,6 +224,19 @@ export default function GlanceMode({ trip, timeline, now, onClose, onMarkArrived
   // Hidden during departPending — the two-tap confirmation is a focused interaction.
   const showArrivalNavigate = !!(next && isArrived && !departPending && cp?.address)
 
+  // Travel progression — elapsed / remaining / progress bar; only when traveling with known leg duration
+  const legTotalMins  = !isArrived ? (timeline.currentLeg?.travelTimeMinutes ?? null) : null
+  const legRemaining  = !isArrived && !next?.etaUncertain
+    ? (timeline.currentLeg?.minsRemaining ?? null)
+    : null
+  const legDepartTime = !isArrived ? (timeline.currentLeg?.departureTime ?? null) : null
+  const legElapsed    = legDepartTime
+    ? Math.max(0, Math.round((now - legDepartTime) / 60000))
+    : null
+  const legProgress   = legElapsed != null && legTotalMins != null && legTotalMins > 0
+    ? Math.min(100, Math.max(0, Math.round((legElapsed / legTotalMins) * 100)))
+    : null
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-surface-900 overflow-hidden select-none">
 
@@ -506,18 +519,34 @@ export default function GlanceMode({ trip, timeline, now, onClose, onMarkArrived
                   </div>
                 ) : (
                   /* Normal traveling state — ETA known */
-                  <div className="flex justify-between items-start px-4 py-3 border-b border-surface-700/50">
-                    <span className="text-surface-300 text-sm font-medium">ETA</span>
-                    <div className="text-right">
-                      <p className="font-mono text-2xl font-bold text-white leading-none">{eta ?? '—?'}</p>
-                      {next?.delay > 0 && (
-                        <p className="font-mono text-xs text-status-tight mt-0.5">+{next.delay}m behind plan</p>
-                      )}
-                      {next?.delay < 0 && (
-                        <p className="font-mono text-xs text-status-ok mt-0.5">{Math.abs(next.delay)}m ahead of plan</p>
-                      )}
+                  <>
+                    <div className="flex justify-between items-start px-4 py-3 border-b border-surface-700/50">
+                      <span className="text-surface-300 text-sm font-medium">ETA</span>
+                      <div className="text-right">
+                        <p className="font-mono text-2xl font-bold text-white leading-none">{eta ?? '—?'}</p>
+                        {next?.delay > 0 && (
+                          <p className="font-mono text-xs text-status-tight mt-0.5">+{next.delay}m behind plan</p>
+                        )}
+                        {next?.delay < 0 && (
+                          <p className="font-mono text-xs text-status-ok mt-0.5">{Math.abs(next.delay)}m ahead of plan</p>
+                        )}
+                      </div>
                     </div>
-                  </div>
+                    {legProgress !== null && (
+                      <div className="px-4 py-3 border-b border-surface-700/50">
+                        <div className="flex justify-between text-xs text-surface-400 mb-2">
+                          {legElapsed != null ? <span>Traveling for {legElapsed}m</span> : <span />}
+                          {legRemaining != null ? <span>{legRemaining}m left</span> : <span />}
+                        </div>
+                        <div className="h-1.5 bg-surface-700 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-[2000ms] ${isDanger ? 'bg-status-at_risk' : isWarning ? 'bg-status-tight' : 'bg-status-ok'}`}
+                            style={{ width: `${legProgress}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
                 {bufferStr && (
                   <div className="flex justify-between items-center px-4 py-3">
@@ -589,17 +618,7 @@ export default function GlanceMode({ trip, timeline, now, onClose, onMarkArrived
           )
         )}
 
-        {next && !isArrived && cp?.address && (
-          <button
-            onClick={() => openNavigation(cp)}
-            className="w-full flex items-center justify-center gap-3 bg-accent text-surface-900 font-bold text-xl py-5 rounded-2xl active:scale-[0.98] transition-transform"
-          >
-            <Navigation size={22} />
-            Open Maps
-          </button>
-        )}
-
-        {next && !isArrived && !cp?.address && (
+        {next && !isArrived && (
           <button
             onClick={() => onMarkArrived(next.checkpointId)}
             className="w-full flex items-center justify-center gap-3 bg-status-ok text-surface-900 font-bold text-xl py-5 rounded-2xl active:scale-[0.98] transition-transform"
@@ -609,7 +628,7 @@ export default function GlanceMode({ trip, timeline, now, onClose, onMarkArrived
           </button>
         )}
 
-        {/* Navigate (arrived, no pending confirmation) + Exit — share one row to preserve footer height */}
+        {/* Navigate (arrived) / Open Maps (traveling) + Exit — share one row */}
         <div className="flex gap-2.5">
           {showArrivalNavigate && (
             <button
@@ -620,9 +639,18 @@ export default function GlanceMode({ trip, timeline, now, onClose, onMarkArrived
               Navigate
             </button>
           )}
+          {next && !isArrived && cp?.address && (
+            <button
+              onClick={() => openNavigation(cp)}
+              className="flex-1 flex items-center justify-center gap-2 bg-surface-700 text-surface-200 font-semibold text-sm min-h-[56px] rounded-2xl border border-surface-600 active:scale-[0.98] transition-transform"
+            >
+              <Navigation size={16} />
+              Open Maps
+            </button>
+          )}
           <button
             onClick={onClose}
-            className={`${showArrivalNavigate ? 'flex-1' : 'w-full'} flex items-center justify-center gap-2 text-surface-400 hover:text-white text-sm min-h-[56px] rounded-xl bg-surface-800 border border-surface-700 transition-colors`}
+            className={`${showArrivalNavigate || (next && !isArrived && cp?.address) ? 'flex-1' : 'w-full'} flex items-center justify-center gap-2 text-surface-400 hover:text-white text-sm min-h-[56px] rounded-xl bg-surface-800 border border-surface-700 transition-colors`}
           >
             <X size={14} />
             Exit Glance Mode
