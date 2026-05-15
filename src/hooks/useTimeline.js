@@ -13,7 +13,7 @@
 import { useMemo, useEffect, useState } from 'react'
 import { useTripStore, useSessionStore } from '../stores/index.js'
 import { calculateTimeline, simulateDelay } from '../engine/timeline.js'
-import { parseTime } from '../utils/time.js'
+import { parseTimeOnDate } from '../utils/time.js'
 
 /**
  * Calculate and return the live timeline for a given trip.
@@ -50,7 +50,7 @@ export function useTimeline(tripId) {
   const tripDate      = trip?.date
   const now = useMemo(() => {
     if (tripIsActive) return liveNow
-    const planned = (tripStartTime && tripDate) ? parseTime(tripStartTime, tripDate) : null
+    const planned = (tripStartTime && tripDate) ? parseTimeOnDate(tripStartTime, new Date(tripDate + 'T12:00:00')) : null
     return planned || new Date()
   }, [tripIsActive, liveNow, tripStartTime, tripDate])
 

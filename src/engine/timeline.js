@@ -6,7 +6,7 @@
 // ============================================================
 
 import { CHECKPOINT_KIND, STATUS, WARNING_TYPE, makeLegId } from './models.js'
-import { parseTime, addMinutes, diffMinutes, toLocalISODate } from '../utils/time.js'
+import { parseTimeOnDate, addMinutes, diffMinutes } from '../utils/time.js'
 
 // ============================================================
 // MAIN EXPORT
@@ -18,7 +18,7 @@ export function calculateTimeline(trip, sessionData = {}, legData = {}, now = ne
   }
 
   const entries = []
-  const plannedStart = parseTime(trip.startTime, trip.date)
+  const plannedStart = parseTimeOnDate(trip.startTime, new Date(trip.date + 'T12:00:00'))
 
   // Effective departure baseline: planned start time by default.
   // When the session is active and the rider actually left LATER than planned,
@@ -58,12 +58,7 @@ export function calculateTimeline(trip, sessionData = {}, legData = {}, now = ne
   for (let i = 0; i < trip.checkpoints.length; i++) {
     const cp      = trip.checkpoints[i]
     const session = sessionData[cp.id] || {}
-    // Use the local calendar date of runningTime as the date for this checkpoint's
-    // HH:MM fields (departureTime, opensAt, appointmentTime, etc.). When a trip
-    // crosses midnight, runningTime is already on the next day — parseTime must use
-    // that date or deadlines will be ~24h in the past and buffers will be ~-1440m.
-    const checkpointDate = runningTime ? toLocalISODate(runningTime) : trip.date
-    const entry   = buildEntry(cp, i, runningTime, trip, session, checkpointDate)
+    const entry   = buildEntry(cp, i, runningTime, trip, session)
     entries.push(entry)
 
     // Outgoing leg: from cp[i] to cp[i+1], used to compute the next runningTime
@@ -96,8 +91,11 @@ export function calculateTimeline(trip, sessionData = {}, legData = {}, now = ne
 // ENTRY BUILDER
 // ============================================================
 
-function buildEntry(cp, index, runningTime, trip, session, checkpointDate) {
-  const date = checkpointDate ?? trip.date
+function buildEntry(cp, index, runningTime, trip, session) {
+  // Use runningTime as the date anchor so midnight-crossing trips place deadline times
+  // on the correct local calendar day. Noon fallback avoids new Date("YYYY-MM-DD")
+  // UTC-midnight parsing which would land on the wrong local day for UTC-X timezones.
+  const refDate = runningTime ?? new Date(trip.date + 'T12:00:00')
   const kind = cp.kind || CHECKPOINT_KIND.NORMAL_STOP
 
   // Session status set by the user
@@ -133,8 +131,8 @@ function buildEntry(cp, index, runningTime, trip, session, checkpointDate) {
   }
 
   // Actual times confirmed by user (HH:MM strings in session → Date objects)
-  const actualArrival   = session.actualArrivalTime   ? parseTime(session.actualArrivalTime,   date) : null
-  const actualDeparture = session.actualDepartureTime ? parseTime(session.actualDepartureTime, date) : null
+  const actualArrival   = session.actualArrivalTime   ? parseTimeOnDate(session.actualArrivalTime,   refDate) : null
+  const actualDeparture = session.actualDepartureTime ? parseTimeOnDate(session.actualDepartureTime, refDate) : null
 
   // Extra delay minutes recorded by user while at this stop
   const extraDelay = session.delayMinutes || 0
@@ -154,20 +152,20 @@ function buildEntry(cp, index, runningTime, trip, session, checkpointDate) {
   let deadlineTime       = null
 
   if (kind === CHECKPOINT_KIND.START) {
-    const plannedDep = cp.plannedDeparture ? parseTime(cp.plannedDeparture, date) : null
+    const plannedDep = cp.plannedDeparture ? parseTimeOnDate(cp.plannedDeparture, refDate) : null
     estimatedDeparture = actualDeparture || plannedDep || estimatedArrival
 
   } else if (kind === CHECKPOINT_KIND.END) {
-    plannedArrival     = cp.plannedArrival ? parseTime(cp.plannedArrival, date) : null
+    plannedArrival     = cp.plannedArrival ? parseTimeOnDate(cp.plannedArrival, refDate) : null
     estimatedDeparture = null
 
   } else if (kind === CHECKPOINT_KIND.NORMAL_STOP || kind === CHECKPOINT_KIND.FUEL_STOP) {
-    plannedArrival     = cp.plannedArrival ? parseTime(cp.plannedArrival, date) : null
+    plannedArrival     = cp.plannedArrival ? parseTimeOnDate(cp.plannedArrival, refDate) : null
     const stayDuration = (cp.plannedDuration || 0) + extraDelay
     estimatedDeparture = actualDeparture || addMinutes(estimatedArrival, stayDuration)
 
   } else if (kind === CHECKPOINT_KIND.DEPARTURE_DEADLINE) {
-    const depTime = cp.departureTime ? parseTime(cp.departureTime, date) : null
+    const depTime = cp.departureTime ? parseTimeOnDate(cp.departureTime, refDate) : null
     deadlineTime       = depTime
     estimatedDeparture = depTime // ferry/train/flight departs at fixed time regardless
     if (depTime) {
@@ -178,8 +176,8 @@ function buildEntry(cp, index, runningTime, trip, session, checkpointDate) {
     }
 
   } else if (kind === CHECKPOINT_KIND.OPENING_HOURS) {
-    const opensAt  = cp.opensAt  ? parseTime(cp.opensAt,  date) : null
-    const closesAt = cp.closesAt ? parseTime(cp.closesAt, date) : null
+    const opensAt  = cp.opensAt  ? parseTimeOnDate(cp.opensAt,  refDate) : null
+    const closesAt = cp.closesAt ? parseTimeOnDate(cp.closesAt, refDate) : null
     plannedArrival = opensAt
     deadlineTime   = closesAt
     if (closesAt) {
@@ -198,7 +196,7 @@ function buildEntry(cp, index, runningTime, trip, session, checkpointDate) {
     )
 
   } else if (kind === CHECKPOINT_KIND.FIXED_APPOINTMENT) {
-    const apptTime = cp.appointmentTime ? parseTime(cp.appointmentTime, date) : null
+    const apptTime = cp.appointmentTime ? parseTimeOnDate(cp.appointmentTime, refDate) : null
     deadlineTime   = apptTime
     if (apptTime) {
       latestSafeArrival  = addMinutes(apptTime, -(cp.arrivalBuffer || 15))
@@ -555,7 +553,7 @@ function getCurrentLeg(entries, trip, now, legData = {}, sessionIsActive = false
   // Departure time: when we left the from-point (actual or estimated)
   const departureTime = lastDone
     ? (lastDone.actualDeparture || lastDone.estimatedDeparture)
-    : parseTime(trip.startTime, trip.date)
+    : parseTimeOnDate(trip.startTime, new Date(trip.date + 'T12:00:00'))
 
   const minsRemaining = next.estimatedArrival && now && !next.etaUncertain
     ? Math.max(0, Math.round((next.estimatedArrival - now) / 60000))
@@ -595,7 +593,7 @@ function buildStartEntry(trip) {
   return {
     name:          trip.origin?.name?.trim() || trip.title,
     address:       trip.origin?.address || '',
-    departureTime: parseTime(trip.startTime, trip.date),
+    departureTime: parseTimeOnDate(trip.startTime, new Date(trip.date + 'T12:00:00')),
   }
 }
 

@@ -50,6 +50,25 @@ export function formatTimeWithDelta(date, reference) {
 }
 
 /**
+ * Parse "HH:MM" onto the local calendar date of a reference Date object.
+ * Safer than parseTime() for midnight-crossing trips and negative UTC offsets:
+ * parseTime() uses new Date("YYYY-MM-DD") which is UTC midnight and places the
+ * result on the wrong local day in UTC-X timezones. This function takes a Date
+ * reference so it always stays on the correct local calendar day.
+ * @param {string} timeStr  - "HH:MM"
+ * @param {Date}   refDate  - anchor date whose local calendar date is preserved
+ * @returns {Date|null}
+ */
+export function parseTimeOnDate(timeStr, refDate) {
+  if (!timeStr || !refDate) return null
+  const [hours, minutes] = timeStr.split(':').map(Number)
+  if (isNaN(hours) || isNaN(minutes)) return null
+  const d = new Date(refDate)
+  d.setHours(hours, minutes, 0, 0)
+  return d
+}
+
+/**
  * Add minutes to a Date, returning a new Date.
  * @param {Date} date
  * @param {number} minutes
