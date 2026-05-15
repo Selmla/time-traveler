@@ -10,7 +10,7 @@
 // ============================================================
 
 import { describe, it, expect } from 'vitest'
-import { calculateTimeline } from './timeline.js'
+import { calculateTimeline, simulateDelay } from './timeline.js'
 import { CHECKPOINT_KIND } from './models.js'
 
 // ============================================================
@@ -128,5 +128,72 @@ describe('currentLeg.departureTime — active session, first leg', () => {
 
     expect(currentLeg.departureTime.getHours()).toBe(11)
     expect(currentLeg.departureTime.getMinutes()).toBe(30)
+  })
+})
+
+// ============================================================
+// What-if simulation — departure_deadline regression
+// ============================================================
+// Before the fix: simulateDelay modified plannedDuration/desiredDuration/duration
+// on the target checkpoint. For DEPARTURE_DEADLINE, the engine ignores those fields —
+// the departure time is fixed. So the simulation always returned an identical timeline,
+// showing "No impact" at any delay value. Fix: add delay to the incoming travel leg
+// so the estimated arrival shifts and the buffer shrinks correctly.
+// ============================================================
+
+describe('simulateDelay — departure_deadline', () => {
+  it('reduces buffer by exactly extraMinutes (regression: was always showing no impact)', () => {
+    // 11:30 departure, 60-min drive → 12:30 arrival at ferry.
+    // Ferry departs 14:00, minimumBuffer=15 → latestSafeArrival=13:45 → buffer=75 min.
+    // After +30m simulation: arrival=13:00, buffer=45 min (75-30).
+    const trip = makeTrip({ startTime: '11:30', travelToFirst: 60 })
+    const now  = new Date(2026, 4, 15, 11, 0, 0) // before departure
+
+    const baseline  = calculateTimeline(trip, {}, {}, now, false, null)
+    const simulated = simulateDelay(trip, 'cp1', 30, {}, {}, now, false, null)
+
+    const baselineBuffer  = baseline.entries[0].bufferMinutes
+    const simulatedBuffer = simulated.entries[0].bufferMinutes
+
+    expect(baselineBuffer).toBe(75)
+    expect(simulatedBuffer).toBe(45) // 75 - 30
+  })
+
+  it('deadline time itself is unchanged (ferry still departs at 14:00)', () => {
+    const trip = makeTrip({ startTime: '11:30', travelToFirst: 60 })
+    const now  = new Date(2026, 4, 15, 11, 0, 0)
+
+    const simulated = simulateDelay(trip, 'cp1', 45, {}, {}, now, false, null)
+    const entry = simulated.entries[0]
+
+    expect(entry.deadlineTime.getHours()).toBe(14)
+    expect(entry.deadlineTime.getMinutes()).toBe(0)
+  })
+
+  it('large delay tips status from ok to tight or at_risk', () => {
+    // +90m pushes arrival to 13:00+30=14:00 start+90=13:30, buffer = 13:45-13:30 = 15 → tight
+    const trip = makeTrip({ startTime: '11:30', travelToFirst: 60 })
+    const now  = new Date(2026, 4, 15, 11, 0, 0)
+
+    // +80m: arrival at 13:50, past latestSafeArrival 13:45 → at_risk
+    const simulated = simulateDelay(trip, 'cp1', 80, {}, {}, now, false, null)
+
+    expect(simulated.entries[0].bufferMinutes).toBeLessThan(0)
+    expect(simulated.entries[0].status).toBe('at_risk')
+  })
+
+  it('legData travel time takes priority over travelTimeToFirst when present', () => {
+    // If legData already has a travel time (e.g. from Maps), use that as the base, not origin.travelTimeToFirst
+    const trip = makeTrip({ startTime: '11:30', travelToFirst: 60 })
+    const now  = new Date(2026, 4, 15, 11, 0, 0)
+
+    const legData = { 'origin_to_cp1': { travelTimeMinutes: 90 } } // Maps says 90 min, not 60
+    const baseline  = calculateTimeline(trip, {}, legData, now, false, null)
+    const simulated = simulateDelay(trip, 'cp1', 20, {}, legData, now, false, null)
+
+    // baseline buffer: arrival at 13:00, latestSafe 13:45 → 45 min
+    expect(baseline.entries[0].bufferMinutes).toBe(45)
+    // simulated: arrival at 13:20, latestSafe 13:45 → 25 min
+    expect(simulated.entries[0].bufferMinutes).toBe(25)
   })
 })

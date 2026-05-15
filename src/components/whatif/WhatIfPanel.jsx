@@ -1,6 +1,7 @@
 import React from 'react'
 import { X, Zap, AlertTriangle, CheckCircle, ChevronUp, ChevronDown } from 'lucide-react'
 import { useSessionStore } from '../../stores/index.js'
+import { CHECKPOINT_KIND } from '../../engine/models.js'
 import { formatTime } from '../../utils/time.js'
 import { StatusDot, Button } from '../ui/index.jsx'
 
@@ -64,7 +65,10 @@ export default function WhatIfPanel({ trip, timeline, whatIfTimeline }) {
 
           {/* Checkpoint name */}
           <p className="text-sm text-surface-500 mb-4">
-            What if we spend longer at <span className="text-white font-medium">{checkpoint.name}</span>?
+            {checkpoint.kind === CHECKPOINT_KIND.DEPARTURE_DEADLINE
+              ? <>What if we arrive <span className="text-white font-medium">later than planned</span> at {checkpoint.name}?</>
+              : <>What if we spend longer at <span className="text-white font-medium">{checkpoint.name}</span>?</>
+            }
           </p>
 
           {/* Time adjuster */}

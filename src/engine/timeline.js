@@ -618,6 +618,32 @@ function emptyResult() {
 // ============================================================
 
 export function simulateDelay(trip, checkpointId, extraMinutes, sessionData = {}, legData = {}, now = new Date(), sessionIsActive = false, startedAt = null) {
+  const targetIdx = trip.checkpoints.findIndex(cp => cp.id === checkpointId)
+  const target    = targetIdx >= 0 ? trip.checkpoints[targetIdx] : null
+
+  // DEPARTURE_DEADLINE: the engine ignores duration fields — departure is fixed.
+  // Simulate arriving later by adding delay to the incoming travel leg instead,
+  // which shrinks the buffer without altering the departure time.
+  if (target?.kind === CHECKPOINT_KIND.DEPARTURE_DEADLINE) {
+    const prevCpId      = targetIdx > 0 ? trip.checkpoints[targetIdx - 1].id : 'origin'
+    const incomingLegId = makeLegId(prevCpId, checkpointId)
+    const existingLeg   = legData[incomingLegId] || {}
+    const baseTravelTime =
+      existingLeg.travelTimeMinutes                                              ??
+      (targetIdx > 0 ? trip.checkpoints[targetIdx - 1].travelTimeToNext : null) ??
+      trip.origin?.travelTimeToFirst                                             ??
+      null
+
+    if (baseTravelTime !== null) {
+      return calculateTimeline(trip, sessionData, {
+        ...legData,
+        [incomingLegId]: { ...existingLeg, travelTimeMinutes: baseTravelTime + extraMinutes },
+      }, now, sessionIsActive, startedAt)
+    }
+    // No travel time known — can't shift arrival; return unmodified (panel shows no change)
+    return calculateTimeline(trip, sessionData, legData, now, sessionIsActive, startedAt)
+  }
+
   const modifiedTrip = {
     ...trip,
     checkpoints: trip.checkpoints.map(cp => {
