@@ -3,7 +3,7 @@ import { Plus, ChevronLeft, Play, ArrowUp, ArrowDown, Trash2, Edit3, Clock, Lock
 import { useTripStore, useSessionStore, useUIStore } from '../stores/index.js'
 import { useTimeline } from '../hooks/useTimeline.js'
 import { CHECKPOINT_KIND, DEPARTURE_MODE, DEFAULT_BUFFERS, TRAVEL_MODE, createCheckpoint, makeLegId } from '../engine/models.js'
-import { formatDate } from '../utils/time.js'
+import { formatDate, formatTime, diffMinutes, parseTimeOnDate } from '../utils/time.js'
 import { Card, Button, StatusDot, CheckpointTypeIcon, EmptyState } from '../components/ui/index.jsx'
 import TimelineView from '../components/timeline/TimelineView.jsx'
 
@@ -21,11 +21,13 @@ export default function PlanScreen() {
   const endTrip        = useSessionStore(s => s.endTrip)
   const isRunning      = useSessionStore(s => s.isRunning)
   const activeId       = useSessionStore(s => s.activeTripId)
+  const startedAt      = useSessionStore(s => s.startedAt)
 
-  const [view, setView] = useState('checkpoints')
+  const [view, setView]                   = useState('checkpoints')
   const [addingCheckpoint, setAddingCheckpoint] = useState(false)
   const [editingCheckpointId, setEditingCheckpointId] = useState(null)
-  const [confirmDeleteTrip, setConfirmDeleteTrip] = useState(false)
+  const [confirmDeleteTrip, setConfirmDeleteTrip]     = useState(false)
+  const [confirmingStart, setConfirmingStart]         = useState(false)
 
   const handleDeleteTrip = () => {
     if (isRunning && activeId === trip.id) endTrip()
@@ -67,16 +69,19 @@ export default function PlanScreen() {
           <Button
             variant="primary"
             className="w-full mt-3"
-            onClick={() => { startTrip(trip.id); setTab('now') }}
+            onClick={() => setConfirmingStart(true)}
           >
             <Play size={16} />
             Start this trip
           </Button>
         )}
         {isThisActive && (
-          <Button variant="success" className="w-full mt-3" onClick={() => setTab('now')}>
-            ● Trip is running — view dashboard
-          </Button>
+          <>
+            <Button variant="success" className="w-full mt-3" onClick={() => setTab('now')}>
+              ● Trip is running — view dashboard
+            </Button>
+            {startedAt && <DepartureBanner trip={trip} startedAt={startedAt} />}
+          </>
         )}
       </div>
 
@@ -148,7 +153,93 @@ export default function PlanScreen() {
           onClose={() => { setAddingCheckpoint(false); setEditingCheckpointId(null) }}
         />
       )}
+
+      {/* Departure confirmation sheet */}
+      {confirmingStart && (
+        <DepartureConfirmation
+          trip={trip}
+          onConfirm={() => { startTrip(trip.id); setConfirmingStart(false); setTab('now') }}
+          onCancel={() => setConfirmingStart(false)}
+        />
+      )}
     </div>
+  )
+}
+
+// ============================================================
+// DEPARTURE BANNER — shown when trip is active
+// ============================================================
+
+function DepartureBanner({ trip, startedAt }) {
+  const departedAt   = new Date(startedAt)
+  const departedTime = formatTime(departedAt)
+  const planned      = parseTimeOnDate(trip.startTime, new Date(trip.date + 'T12:00:00'))
+  const deltaMins    = planned ? diffMinutes(planned, departedAt) : 0
+
+  return (
+    <div className="flex items-center justify-between text-xs bg-surface-700/60 rounded-lg px-3 py-2 mt-2">
+      <span className="text-surface-400">Departed {departedTime}</span>
+      {Math.abs(deltaMins) > 1 && (
+        <span className={deltaMins > 0 ? 'text-status-tight font-medium' : 'text-status-ok font-medium'}>
+          {deltaMins > 0 ? `+${deltaMins} min from plan` : `${Math.abs(deltaMins)} min early`}
+        </span>
+      )}
+    </div>
+  )
+}
+
+// ============================================================
+// DEPARTURE CONFIRMATION — "I'm leaving now" sheet
+// ============================================================
+
+function DepartureConfirmation({ trip, onConfirm, onCancel }) {
+  const now         = new Date()
+  const currentTime = formatTime(now)
+  const planned     = parseTimeOnDate(trip.startTime, new Date(trip.date + 'T12:00:00'))
+  const deltaMins   = planned ? diffMinutes(planned, now) : 0
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/60 z-40" onClick={onCancel} />
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-surface-800 border-t border-surface-600/50 rounded-t-2xl animate-slide-up pb-safe">
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="w-10 h-1 bg-surface-600 rounded-full" />
+        </div>
+        <div className="px-4 pb-6">
+          <h2 className="text-xl font-bold text-white mt-2 mb-1">You're leaving now</h2>
+          <p className="text-sm text-surface-400 mb-5">
+            This sets your live departure time — all ETAs adjust from this moment.
+          </p>
+
+          <div className="bg-surface-700/50 rounded-xl p-4 space-y-2 mb-6">
+            <div className="flex justify-between text-sm">
+              <span className="text-surface-500">Planned departure</span>
+              <span className="font-mono text-white">{trip.startTime}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-surface-500">Actual departure</span>
+              <span className="font-mono text-accent font-semibold">{currentTime}</span>
+            </div>
+            {Math.abs(deltaMins) > 1 && (
+              <div className="border-t border-surface-600/40 pt-2 flex justify-between text-sm">
+                <span className="text-surface-500">Timeline shift</span>
+                <span className={`font-mono font-semibold ${deltaMins > 0 ? 'text-status-at_risk' : 'text-status-ok'}`}>
+                  {deltaMins > 0 ? `+${deltaMins} min behind plan` : `${Math.abs(deltaMins)} min ahead`}
+                </span>
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-3">
+            <Button variant="secondary" onClick={onCancel} className="flex-1">Not yet</Button>
+            <Button variant="primary" onClick={onConfirm} className="flex-1">
+              <Play size={16} />
+              I'm leaving
+            </Button>
+          </div>
+        </div>
+      </div>
+    </>
   )
 }
 
@@ -198,7 +289,6 @@ function CheckpointList({ trip, onAdd, onEdit }) {
 }
 
 function CheckpointRow({ checkpoint: cp, index, total, onEdit, onMoveUp, onMoveDown, onDelete }) {
-  // Kind-specific summary line
   let subtitle = ''
   switch (cp.kind) {
     case CHECKPOINT_KIND.DEPARTURE_DEADLINE:
@@ -288,47 +378,82 @@ function PlanTimelineView({ trip }) {
 function CheckpointEditor({ trip, checkpointId, onClose }) {
   const addCheckpoint    = useTripStore(s => s.addCheckpoint)
   const updateCheckpoint = useTripStore(s => s.updateCheckpoint)
+  const updateTrip       = useTripStore(s => s.updateTrip)
   const updateLeg        = useSessionStore(s => s.updateLeg)
+  const legData          = useSessionStore(s => s.legData)
 
   const existing = checkpointId
     ? trip.checkpoints.find(c => c.id === checkpointId)
     : null
 
-  // If editing, go straight to the form. If adding, show kind picker first.
   const [kind, setKind] = useState(existing?.kind || null)
-  // Holds a Maps estimate made before the checkpoint was saved (legId was null).
-  // Applied immediately after addCheckpoint() returns the real checkpoint ID.
-  const [pendingEstimate, setPendingEstimate] = useState(null)
 
-  const handleSave = (data) => {
-    if (existing) {
-      updateCheckpoint(trip.id, checkpointId, data)
-    } else {
-      const newCp = addCheckpoint(trip.id, data)
-      if (pendingEstimate) {
-        const fromId = fromCheckpoint ? fromCheckpoint.id : 'origin'
-        const newLegId = makeLegId(fromId, newCp.id)
-        const legUpdate = { travelTimeMinutes: pendingEstimate.travelTimeMinutes, source: 'google' }
-        if (pendingEstimate.distanceKm != null) legUpdate.distanceText = `${pendingEstimate.distanceKm} km`
-        updateLeg(newLegId, legUpdate)
-      }
-    }
-    onClose()
-  }
-
-  // Context for the Maps estimate button — resolved from trip position.
-  // cpIndex: position of this checkpoint in the list; treat new cp as appended at end.
+  // Position context — where this checkpoint sits (or will sit) in the list
   const cpIndex = checkpointId
     ? trip.checkpoints.findIndex(c => c.id === checkpointId)
     : trip.checkpoints.length
   const fromCheckpoint = cpIndex > 0 ? trip.checkpoints[cpIndex - 1] : null
-  const fromAddress = fromCheckpoint
+  const fromStopName   = fromCheckpoint?.name?.trim() || trip.origin?.name?.trim() || 'starting point'
+  const fromAddress    = fromCheckpoint
     ? (fromCheckpoint.address?.trim() || fromCheckpoint.name || '')
     : (trip.origin?.address?.trim() || trip.origin?.name || '')
-  // legId is only available when editing an existing checkpoint (has a real id)
+
+  // legId for the INCOMING leg: prev stop → this stop
   const legId = checkpointId && cpIndex >= 0
     ? makeLegId(cpIndex > 0 ? trip.checkpoints[cpIndex - 1].id : 'origin', checkpointId)
     : null
+
+  // Incoming travel time/mode — initialised from legData (highest priority) or prev stop's persisted field
+  const [incomingTravelTime, setIncomingTravelTime] = useState(() => {
+    if (legId && legData[legId]?.travelTimeMinutes != null) return legData[legId].travelTimeMinutes
+    if (fromCheckpoint) return fromCheckpoint.travelTimeToNext ?? null
+    return trip.origin?.travelTimeToFirst ?? null
+  })
+  const [incomingTravelMode, setIncomingTravelMode] = useState(() => {
+    if (legId && legData[legId]?.mode) return legData[legId].mode
+    if (fromCheckpoint) return fromCheckpoint.travelModeToNext ?? null
+    return trip.origin?.travelModeToFirst ?? null
+  })
+
+  // Maps estimate callback: update form display AND write to legData for live timeline preview
+  const handleEstimate = ({ travelTimeMinutes, distanceKm }) => {
+    setIncomingTravelTime(travelTimeMinutes)
+    // legData is already written by MapsEstimateButton for immediate engine reaction;
+    // this just keeps the displayed value in sync with the result.
+  }
+
+  // Write incoming time to both legData (live) and trip store (persisted across sessions)
+  const persistIncomingTime = (resolvedLegId, time, mode) => {
+    if (time == null) return
+    updateLeg(resolvedLegId, { travelTimeMinutes: time, source: 'manual' })
+    if (fromCheckpoint) {
+      updateCheckpoint(trip.id, fromCheckpoint.id, {
+        travelTimeToNext: time,
+        travelModeToNext: mode ?? null,
+      })
+    } else {
+      updateTrip(trip.id, {
+        origin: {
+          ...trip.origin,
+          travelTimeToFirst: time,
+          travelModeToFirst: mode ?? null,
+        },
+      })
+    }
+  }
+
+  const handleSave = (data) => {
+    const fromId = fromCheckpoint ? fromCheckpoint.id : 'origin'
+    if (existing) {
+      updateCheckpoint(trip.id, checkpointId, data)
+      if (legId) persistIncomingTime(legId, incomingTravelTime, incomingTravelMode)
+    } else {
+      const newCp    = addCheckpoint(trip.id, data)
+      const newLegId = makeLegId(fromId, newCp.id)
+      persistIncomingTime(newLegId, incomingTravelTime, incomingTravelMode)
+    }
+    onClose()
+  }
 
   return (
     <>
@@ -349,7 +474,12 @@ function CheckpointEditor({ trip, checkpointId, onClose }) {
             onBack={existing ? null : () => setKind(null)}
             legId={legId}
             fromAddress={fromAddress}
-            onEstimate={setPendingEstimate}
+            fromStopName={fromStopName}
+            incomingTravelTime={incomingTravelTime}
+            incomingTravelMode={incomingTravelMode}
+            onIncomingTimeChange={setIncomingTravelTime}
+            onIncomingModeChange={setIncomingTravelMode}
+            onEstimate={handleEstimate}
           />
         )}
       </div>
@@ -430,7 +560,13 @@ function KindPicker({ onPick, onClose }) {
 // STEP 2 — Kind-specific form
 // ============================================================
 
-function CheckpointForm({ kind, existing, onSave, onClose, onBack, legId, fromAddress, onEstimate }) {
+function CheckpointForm({
+  kind, existing, onSave, onClose, onBack,
+  legId, fromAddress, fromStopName,
+  incomingTravelTime, incomingTravelMode,
+  onIncomingTimeChange, onIncomingModeChange,
+  onEstimate,
+}) {
   const [form, setForm] = useState(() => existing || createCheckpoint({ kind }))
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }))
 
@@ -518,9 +654,20 @@ function CheckpointForm({ kind, existing, onSave, onClose, onBack, legId, fromAd
           </FormField>
         )}
 
-        {/* Travel leg — mode selector + mode-aware time label */}
-        {kind !== CHECKPOINT_KIND.END && (
-          <TravelLegFields form={form} set={set} legId={legId} fromAddress={fromAddress} onEstimate={onEstimate} />
+        {/* Incoming travel leg — how to get FROM previous stop TO here.
+            Shown for all kinds except START, which has no previous stop. */}
+        {kind !== CHECKPOINT_KIND.START && (
+          <TravelLegFields
+            fromStopName={fromStopName}
+            fromAddress={fromAddress}
+            destAddress={form.address?.trim() || form.name?.trim() || ''}
+            incomingTime={incomingTravelTime}
+            incomingMode={incomingTravelMode}
+            onTimeChange={onIncomingTimeChange}
+            onModeChange={onIncomingModeChange}
+            legId={legId}
+            onEstimate={onEstimate}
+          />
         )}
 
         {/* Notes — shared */}
@@ -799,72 +946,106 @@ function StartEndFields({ form, set, isStart }) {
 }
 
 // ============================================================
-// Travel leg fields — mode picker + mode-aware time label
+// Incoming travel leg — "How long from [prev] to here?"
+// Maps estimation is primary; manual entry is the fallback.
 // ============================================================
 
 const TRAVEL_MODE_OPTIONS = [
-  { value: null,               emoji: '?',  label: 'Unknown' },
+  { value: null,                emoji: '?',  label: 'Unknown' },
   { value: TRAVEL_MODE.WALKING, emoji: '🚶', label: 'Walk'    },
   { value: TRAVEL_MODE.DRIVING, emoji: '🚗', label: 'Drive'   },
   { value: TRAVEL_MODE.CYCLING, emoji: '🚲', label: 'Cycle'   },
   { value: TRAVEL_MODE.TRANSIT, emoji: '🚌', label: 'Transit' },
 ]
 
-function travelTimeLabelFor(mode) {
-  switch (mode) {
-    case TRAVEL_MODE.WALKING: return 'Walk time to next stop (min)'
-    case TRAVEL_MODE.DRIVING: return 'Drive time to next stop (min)'
-    case TRAVEL_MODE.CYCLING: return 'Cycle time to next stop (min)'
-    case TRAVEL_MODE.TRANSIT: return 'Transit time to next stop (min)'
-    default:                  return 'Travel time to next stop (min)'
-  }
-}
+function TravelLegFields({
+  fromStopName, fromAddress, destAddress,
+  incomingTime, incomingMode,
+  onTimeChange, onModeChange,
+  legId, onEstimate,
+}) {
+  const canEstimate    = fromAddress.trim().length > 0 && destAddress.trim().length > 0
+  const missingAddress = !destAddress.trim()
 
-function TravelLegFields({ form, set, legId, fromAddress, onEstimate }) {
-  const mode = form.travelModeToNext ?? null  // null = unknown
-  const destAddress = form.address?.trim() || form.name?.trim() || ''
+  const modeWord = {
+    [TRAVEL_MODE.DRIVING]: 'drive',
+    [TRAVEL_MODE.WALKING]: 'walk',
+    [TRAVEL_MODE.CYCLING]: 'cycle',
+    [TRAVEL_MODE.TRANSIT]: 'transit time',
+  }[incomingMode] || 'travel time'
 
   return (
-    <div className="space-y-2">
-      <div>
-        <label className="text-xs text-surface-500 uppercase tracking-wider mb-1.5 block">
-          How do you get there?
+    <div className="space-y-3 pt-1">
+      {/* Section header with missing-state indicator */}
+      <div className="flex items-center justify-between">
+        <label className="text-xs text-surface-500 uppercase tracking-wider">
+          Getting here from {fromStopName}
         </label>
-        <div className="flex gap-1.5">
-          {TRAVEL_MODE_OPTIONS.map(m => (
-            <button
-              key={m.label}
-              type="button"
-              onClick={() => set('travelModeToNext', m.value)}
-              className={`flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl border text-xs font-medium transition-colors ${
-                mode === m.value
-                  ? 'border-accent bg-accent/10 text-white'
-                  : 'border-surface-600 bg-surface-700 text-surface-400'
-              }`}
-            >
-              <span className="text-base leading-none">{m.emoji}</span>
-              <span className="text-[10px]">{m.label}</span>
-            </button>
-          ))}
-        </div>
+        {incomingTime == null && (
+          <span className="text-xs text-status-at_risk font-medium">ETA unknown</span>
+        )}
+        {incomingTime != null && (
+          <span className="text-xs text-status-ok font-medium">{incomingTime} min</span>
+        )}
       </div>
-      <FormField label={travelTimeLabelFor(mode)}>
+
+      {/* Travel mode picker */}
+      <div className="flex gap-1.5">
+        {TRAVEL_MODE_OPTIONS.map(m => (
+          <button
+            key={m.label}
+            type="button"
+            onClick={() => onModeChange(m.value)}
+            className={`flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl border text-xs font-medium transition-colors ${
+              incomingMode === m.value
+                ? 'border-accent bg-accent/10 text-white'
+                : 'border-surface-600 bg-surface-700 text-surface-400'
+            }`}
+          >
+            <span className="text-base leading-none">{m.emoji}</span>
+            <span className="text-[10px]">{m.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Maps estimate — primary CTA */}
+      <MapsEstimateButton
+        legId={legId}
+        fromAddress={fromAddress}
+        destAddress={destAddress}
+        travelMode={incomingMode}
+        onEstimate={onEstimate}
+        onTimeUpdate={onTimeChange}
+      />
+
+      {/* Address hint when Maps can't run */}
+      {missingAddress && (
+        <p className="text-xs text-surface-500 text-center -mt-1">
+          Add an address above to enable Maps estimates
+        </p>
+      )}
+
+      {/* Manual entry — secondary fallback */}
+      <div>
+        <label className="text-xs text-surface-400 mb-1.5 block">
+          Or enter {modeWord} manually (minutes)
+        </label>
         <input
           type="number"
           min="0"
-          placeholder="Minutes — or use Estimate from Maps below"
-          value={form.travelTimeToNext ?? ''}
-          onChange={e => set('travelTimeToNext', e.target.value !== '' ? Number(e.target.value) : null)}
+          placeholder="e.g. 75"
+          value={incomingTime ?? ''}
+          onChange={e => onTimeChange(e.target.value !== '' ? Number(e.target.value) : null)}
           className={inputCls}
         />
-      </FormField>
-      <MapsEstimateButton
-        legId={legId}
-        fromAddress={fromAddress || ''}
-        destAddress={destAddress}
-        travelMode={mode}
-        onEstimate={onEstimate}
-      />
+      </div>
+
+      {/* Missing-state explanation */}
+      {incomingTime == null && (
+        <p className="text-xs text-surface-500">
+          Without a travel time the app can't estimate when you'll arrive here — ETAs for this stop will show as unknown.
+        </p>
+      )}
     </div>
   )
 }
@@ -873,11 +1054,11 @@ function TravelLegFields({ form, set, legId, fromAddress, onEstimate }) {
 // Maps estimate button — calls /api/travel-time on tap
 // ============================================================
 
-function MapsEstimateButton({ legId, fromAddress, destAddress, travelMode, onEstimate }) {
-  const updateLeg = useSessionStore(s => s.updateLeg)
-  const [status, setStatus]   = useState('idle')  // 'idle' | 'loading' | 'error'
-  const [errorMsg, setErrorMsg] = useState('')
-  const [result, setResult]   = useState(null)     // { minutes, distanceKm } on success
+function MapsEstimateButton({ legId, fromAddress, destAddress, travelMode, onEstimate, onTimeUpdate }) {
+  const updateLeg                 = useSessionStore(s => s.updateLeg)
+  const [status, setStatus]       = useState('idle')  // 'idle' | 'loading' | 'error'
+  const [errorMsg, setErrorMsg]   = useState('')
+  const [result, setResult]       = useState(null)
 
   const canEstimate = fromAddress.trim().length > 0 && destAddress.trim().length > 0
 
@@ -906,17 +1087,17 @@ function MapsEstimateButton({ legId, fromAddress, destAddress, travelMode, onEst
         return
       }
 
-      // Update session store — the engine reacts immediately via legData.
-      // Intentionally does NOT write to form's travelTimeToNext: that field
-      // stores the OUTGOING leg time; this estimate is the INCOMING leg.
+      // Write to legData immediately so the live timeline reacts while the form is still open
       if (legId) {
         const legUpdate = { travelTimeMinutes: data.travelTimeMinutes, source: 'google' }
         if (data.distanceKm != null) legUpdate.distanceText = `${data.distanceKm} km`
         updateLeg(legId, legUpdate)
       }
 
-      // For new (unsaved) checkpoints, legId is null. Bubble up to CheckpointEditor
-      // so it can call updateLeg after addCheckpoint() returns the real ID.
+      // Update the form's displayed incoming time
+      onTimeUpdate?.(data.travelTimeMinutes)
+
+      // Bubble up full result to CheckpointEditor (handles pending-estimate for new checkpoints)
       onEstimate?.({ travelTimeMinutes: data.travelTimeMinutes, distanceKm: data.distanceKm })
 
       setResult({ minutes: data.travelTimeMinutes, distanceKm: data.distanceKm })
@@ -928,23 +1109,30 @@ function MapsEstimateButton({ legId, fromAddress, destAddress, travelMode, onEst
   }
 
   return (
-    <div>
+    <div className="space-y-2">
       <button
         type="button"
         onClick={handleEstimate}
         disabled={!canEstimate || status === 'loading'}
-        className="flex items-center gap-1.5 text-xs font-medium text-accent hover:text-accent/80 disabled:text-surface-500 disabled:cursor-not-allowed transition-colors py-1"
+        className="w-full flex items-center justify-center gap-2 text-sm font-medium border border-surface-600 bg-surface-700 hover:bg-surface-600 hover:border-accent/60 rounded-xl px-4 py-3 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
       >
-        <MapPin size={11} className={status === 'loading' ? 'animate-pulse' : ''} />
-        {status === 'loading' ? 'Estimating…' : 'Estimate from Maps'}
+        <MapPin size={14} className={status === 'loading' ? 'animate-pulse text-accent' : 'text-accent'} />
+        {status === 'loading' ? 'Estimating…' : 'Get travel time from Maps'}
       </button>
+
       {status === 'error' && (
-        <p className="text-xs text-status-at_risk mt-0.5">{errorMsg}</p>
+        <p className="text-xs text-status-at_risk text-center">{errorMsg}</p>
       )}
+
       {result && status === 'idle' && (
-        <p className="text-xs text-status-ok mt-0.5">
-          ✓ {result.minutes} min{result.distanceKm != null ? ` · ${result.distanceKm} km` : ''}{legId ? ' — saved to timeline' : ' — save checkpoint to apply'}
-        </p>
+        <div className="flex items-center justify-between bg-status-ok/10 border border-status-ok/20 rounded-xl px-3 py-2">
+          <span className="text-xs text-status-ok font-medium">
+            ✓ {result.minutes} min{result.distanceKm != null ? ` · ${result.distanceKm} km` : ''}
+          </span>
+          <span className="text-xs text-surface-500">
+            {legId ? 'applied' : 'will apply on save'}
+          </span>
+        </div>
       )}
     </div>
   )
@@ -965,7 +1153,6 @@ function FormField({ label, children }) {
 
 const inputCls = 'w-full bg-surface-700 border border-surface-600 rounded-xl px-4 py-3 text-white placeholder-surface-500 focus:outline-none focus:border-accent text-sm'
 
-// Subtract minutes from an HH:MM string, returns HH:MM or null
 function subtractMins(timeStr, mins) {
   if (!timeStr || !mins) return null
   const [h, m] = timeStr.split(':').map(Number)
