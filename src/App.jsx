@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react'
 import { Navigation, List, Map, Sun, Moon } from 'lucide-react'
-import { useUIStore, useSessionStore } from './stores/index.js'
+import { useUIStore, useSessionStore, useTripStore } from './stores/index.js'
 import NowScreen from './screens/NowScreen.jsx'
 import TripsScreen from './screens/TripsScreen.jsx'
 import PlanScreen from './screens/PlanScreen.jsx'
@@ -15,8 +15,15 @@ export default function App() {
   const activeTab   = useUIStore(s => s.activeTab)
   const setTab      = useUIStore(s => s.setTab)
   const isRunning   = useSessionStore(s => s.isRunning)
+  const trips       = useTripStore(s => s.trips)
   const theme       = useUIStore(s => s.theme)
   const toggleTheme = useUIStore(s => s.toggleTheme)
+
+  // New users with no trips land on Trips (the planning home) instead of the uninformative Now empty state.
+  // Pure computed value — no effect, no store mutation, no visible flash.
+  const effectiveTab = (activeTab === 'now' && !isRunning && trips.length === 0)
+    ? 'trips'
+    : activeTab
 
   // Sync theme to <html> so CSS variable selectors and color-scheme apply globally.
   // Also runs on first mount to match any value rehydrated from localStorage.
@@ -32,13 +39,13 @@ export default function App() {
       <main className="flex-1 overflow-hidden">
         {/* All screens are mounted, only the active one is visible.
             This avoids state loss when switching tabs. */}
-        <div className={`h-full overflow-hidden ${activeTab === 'now' ? 'block' : 'hidden'}`}>
+        <div className={`h-full overflow-hidden ${effectiveTab === 'now' ? 'block' : 'hidden'}`}>
           <NowScreen />
         </div>
-        <div className={`h-full overflow-hidden ${activeTab === 'trips' ? 'block' : 'hidden'}`}>
+        <div className={`h-full overflow-hidden ${effectiveTab === 'trips' ? 'block' : 'hidden'}`}>
           <TripsScreen />
         </div>
-        <div className={`h-full overflow-hidden ${activeTab === 'plan' ? 'block' : 'hidden'}`}>
+        <div className={`h-full overflow-hidden ${effectiveTab === 'plan' ? 'block' : 'hidden'}`}>
           <PlanScreen />
         </div>
       </main>
@@ -50,7 +57,7 @@ export default function App() {
             id="now"
             icon={Navigation}
             label="Now"
-            active={activeTab === 'now'}
+            active={effectiveTab === 'now'}
             onPress={() => setTab('now')}
             badge={isRunning}
           />
@@ -58,14 +65,14 @@ export default function App() {
             id="trips"
             icon={List}
             label="Trips"
-            active={activeTab === 'trips'}
+            active={effectiveTab === 'trips'}
             onPress={() => setTab('trips')}
           />
           <NavTab
             id="plan"
             icon={Map}
             label="Plan"
-            active={activeTab === 'plan'}
+            active={effectiveTab === 'plan'}
             onPress={() => setTab('plan')}
           />
 

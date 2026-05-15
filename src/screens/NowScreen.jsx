@@ -38,7 +38,6 @@ export default function NowScreen() {
   const startedAt    = useSessionStore(s => s.startedAt)
   const endTrip      = useSessionStore(s => s.endTrip)
   const trips        = useTripStore(s => s.trips)
-  const setTab       = useUIStore(s => s.setTab)
 
   // Local state: banner dismissed means user chose to continue this specific stale session.
   // NowScreen is always mounted (never hidden via unmount — see App.jsx), so we reset
@@ -90,9 +89,8 @@ export default function NowScreen() {
         )}
         <EmptyState
           icon={Navigation}
-          title="No trips yet"
-          description="Create a trip to start tracking your timeline."
-          action={<Button onClick={() => setTab('trips')}>Create your first trip</Button>}
+          title="Your live trip view"
+          description="When you start a trip, this screen shows your real-time ETA, timeline status, and deadline buffer. Plan a trip first from the Trips tab."
         />
       </div>
     )
