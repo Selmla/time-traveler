@@ -332,7 +332,7 @@ function TimelineRow({ entry, checkpoint, isLast, interactive, onMarkArrived, on
                 /* Checkpoint has its own deadline — show how much buffer you have at it */
                 entry.bufferMinutes !== null && (
                   <div className="flex justify-between text-xs">
-                    <span className="text-surface-500">Deadline buffer</span>
+                    <span className="text-surface-500">Time to spare</span>
                     <span className={`font-mono ${
                       entry.bufferMinutes < 0 ? 'text-status-at_risk' :
                       entry.bufferMinutes < 10 ? 'text-status-tight' : 'text-status-ok'
@@ -362,7 +362,7 @@ function TimelineRow({ entry, checkpoint, isLast, interactive, onMarkArrived, on
                     )}
                     {nextDeadline?.bufferMinutes != null && (
                       <div className="flex justify-between">
-                        <span className="text-surface-500">Expected buffer after this stop</span>
+                        <span className="text-surface-500">Time to spare after this stop</span>
                         <span className={`font-mono ${
                           nextDeadline.bufferMinutes < 0 ? 'text-status-at_risk' :
                           nextDeadline.bufferMinutes < 10 ? 'text-status-tight' : 'text-status-ok'

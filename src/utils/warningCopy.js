@@ -25,7 +25,7 @@ export function renderWarning(warning, profile) {
       const { diffMins } = warning
       return city
         ? `Arriving a little later than ideal — slightly less time to settle in`
-        : `Arriving ${diffMins}m later than preferred — buffer tighter than planned`
+        : `Arriving ${diffMins}m later than preferred — less time to spare than planned`
     }
 
     case WARNING_TYPE.ARRIVES_BEFORE_OPEN: {
@@ -98,7 +98,7 @@ export function renderConsequence(consequence, profile) {
           ? { headlineLine: `Time to head out`,
               contextLine:   `${affectedName} is getting tight` }
           : { headlineLine: `Leave soon`,
-              contextLine:   `${kindLabel} buffer is exhausted` }
+              contextLine:   `no time left for the ${kindLabel}` }
 
       case STATUS.MISSED:
         return city
@@ -132,7 +132,7 @@ export function renderConsequence(consequence, profile) {
         return city
           ? { headlineLine: `Running very tight`,
               contextLine:   `${affectedName} may be affected — consider adjusting your plans` }
-          : { headlineLine: `Deadline buffer exhausted`,
+          : { headlineLine: `Running out of time`,
               contextLine:   `${labelWithTime} is at risk — consider adjusting the plan` }
 
       case STATUS.MISSED:

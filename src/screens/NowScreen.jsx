@@ -91,7 +91,7 @@ export default function NowScreen() {
         <EmptyState
           icon={Navigation}
           title="Your live trip view"
-          description="When you start a trip, this screen shows your real-time ETA, timeline status, and deadline buffer. Plan a trip first from the Trips tab."
+          description="Once you're on the road, this screen tells you if you're going to make it — with live ETAs and time checks at each stop. Plan your first trip in the Trips tab."
         />
       </div>
     )
@@ -195,7 +195,7 @@ function getStatusMessage(status, buffer, isRunningLate = false, copy = {}) {
   const deadlineAtRisk = copy.deadlineAtRisk  ?? 'Deadline at risk'
   const deadlineMissed = copy.deadlineMissed  ?? 'Deadline missed'
   const gettingTight   = copy.gettingTight    ?? 'Getting tight'
-  const bufferLow      = copy.bufferLow       ?? 'Buffer running low'
+  const bufferLow      = copy.bufferLow       ?? 'Running low on time'
   const cuttingItClose = copy.cuttingItClose  ?? 'Cutting it close'
 
   if (status === STATUS.OK) {
@@ -431,6 +431,8 @@ function ActiveDashboard({ tripId }) {
       </div>
 
       {whatIfActive && <WhatIfPanel trip={trip} timeline={timeline} whatIfTimeline={whatIfTimeline} />}
+
+      <GlanceModeNudge glanceModeActive={glanceModeActive} onTryGlance={toggleGlanceMode} />
 
       {glanceModeActive && (
         <GlanceMode
@@ -894,7 +896,7 @@ function AppointmentTimingBlock({ entry, checkpoint: cp, eta }) {
       </div>
       {buffer !== null && (
         <p className={`text-xs font-mono mt-1 ${buffer >= 0 ? 'text-status-ok' : 'text-status-at_risk'}`}>
-          {buffer >= 0 ? `${buffer}m buffer before appointment` : `Running ${Math.abs(buffer)}m late`}
+          {buffer >= 0 ? `${buffer}m to spare` : `Running ${Math.abs(buffer)}m late`}
         </p>
       )}
     </div>
@@ -1267,7 +1269,7 @@ function PreDepartureCard({ trip }) {
         ) : totalBuffer !== null ? (
           <p className={`text-xs font-medium ${bufferColor}`}>
             {totalBuffer >= 0
-              ? `+${totalBuffer} min buffer at destination`
+              ? `+${totalBuffer} min to spare at destination`
               : `${Math.abs(totalBuffer)} min past the safe window`}
           </p>
         ) : null}
@@ -1287,7 +1289,67 @@ function PreDepartureCard({ trip }) {
           View plan
         </Button>
       </div>
+      <p className="text-xs text-surface-500 mt-2">Tap when you actually leave — your ETAs update from that moment.</p>
     </Card>
+  )
+}
+
+// ============================================================
+// GLANCE MODE NUDGE
+// One-time contextual prompt shown 45s into an active session.
+// localStorage flag 'tt-glance-nudge' prevents repeat display.
+// ============================================================
+
+function GlanceModeNudge({ glanceModeActive, onTryGlance }) {
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    if (localStorage.getItem('tt-glance-nudge')) return
+    const id = setTimeout(() => setVisible(true), 45_000)
+    return () => clearTimeout(id)
+  }, [])
+
+  useEffect(() => {
+    if (glanceModeActive && visible) {
+      localStorage.setItem('tt-glance-nudge', '1')
+      setVisible(false)
+    }
+  }, [glanceModeActive, visible])
+
+  if (!visible) return null
+
+  const handleDismiss = () => {
+    localStorage.setItem('tt-glance-nudge', '1')
+    setVisible(false)
+  }
+
+  const handleTry = () => {
+    localStorage.setItem('tt-glance-nudge', '1')
+    setVisible(false)
+    onTryGlance()
+  }
+
+  return (
+    <div className="fixed bottom-20 left-4 right-4 z-40 bg-surface-700 border border-surface-600/50 rounded-xl px-4 py-3 flex items-center gap-3 shadow-xl">
+      <Eye size={15} className="text-accent flex-shrink-0" />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm text-white font-medium">Riding? Try Glance Mode</p>
+        <p className="text-xs text-surface-400">Big, simple display — one tap away</p>
+      </div>
+      <button
+        onClick={handleTry}
+        className="text-xs font-semibold text-accent hover:text-white transition-colors flex-shrink-0"
+      >
+        Try it
+      </button>
+      <button
+        onClick={handleDismiss}
+        className="text-surface-500 hover:text-white flex-shrink-0 p-0.5"
+        aria-label="Dismiss"
+      >
+        <X size={14} />
+      </button>
+    </div>
   )
 }
 

@@ -123,7 +123,7 @@ export default function WhatIfPanel({ trip, timeline, whatIfTimeline }) {
               {changedEntries.length === 0 && !isWorse ? (
                 <div className="flex items-center gap-2 text-status-ok text-sm">
                   <CheckCircle size={14} />
-                  No impact — you still have enough buffer
+                  No impact — you're still on track
                 </div>
               ) : (
                 <div className="space-y-2">

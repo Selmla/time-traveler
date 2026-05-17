@@ -568,7 +568,7 @@ export default function GlanceMode({ trip, timeline, now, onClose, onMarkArrived
                 )}
                 {bufferStr && (
                   <div className="flex justify-between items-center px-4 py-3 border-b border-surface-700/50">
-                    <span className="text-surface-300 text-sm font-medium">Deadline buffer</span>
+                    <span className="text-surface-300 text-sm font-medium">Time to spare</span>
                     <span className={`font-mono font-bold text-2xl ${bufferColor}`}>{bufferStr}</span>
                   </div>
                 )}

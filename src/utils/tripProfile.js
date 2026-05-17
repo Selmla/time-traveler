@@ -30,7 +30,7 @@ export function profileCopy(profile) {
     deadlineAtRisk:  city ? 'Reservation may be affected' : 'Deadline at risk',
     deadlineMissed:  city ? 'Reservation missed'          : 'Deadline missed',
     gettingTight:    city ? 'This visit is getting tight'  : 'Getting tight',
-    bufferLow:       city ? 'Time getting short'           : 'Buffer running low',
+    bufferLow:       city ? 'Time getting short'           : 'Running low on time',
     cuttingItClose:  city ? 'Running behind schedule'      : 'Cutting it close',
   }
 }
