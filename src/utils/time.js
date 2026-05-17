@@ -125,6 +125,24 @@ export function formatBuffer(minutes) {
 }
 
 /**
+ * Format a countdown to/from a departure time.
+ * Positive mins = time remaining. Zero or negative = already past.
+ * @param {number} mins
+ * @returns {string}
+ */
+export function formatCountdown(mins) {
+  const rounded = Math.round(mins)
+  if (rounded <= 0) {
+    const abs = Math.abs(rounded)
+    return abs === 0 ? 'depart now' : `${abs} min ago`
+  }
+  if (rounded < 60) return `in ${rounded} min`
+  const h = Math.floor(rounded / 60)
+  const m = rounded % 60
+  return m === 0 ? `in ${h}h` : `in ${h}h ${m}m`
+}
+
+/**
  * Parse HH:MM string into { hours, minutes }
  * @param {string} timeStr
  * @returns {{ hours: number, minutes: number } | null}

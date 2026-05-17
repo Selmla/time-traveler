@@ -3,7 +3,8 @@ import { Navigation, MapPin, Clock, AlertTriangle, CheckCircle, Play, ChevronRig
 import { useActiveTimeline, useTimeline } from '../hooks/useTimeline.js'
 import { useDepartConfirm } from '../hooks/useDepartConfirm.js'
 import { useSessionStore, useTripStore, useUIStore } from '../stores/index.js'
-import { formatTime, formatBuffer, formatDuration, formatDate } from '../utils/time.js'
+import { formatTime, formatBuffer, formatDuration, formatDate, parseTimeOnDate, formatCountdown } from '../utils/time.js'
+import { findPreDepartureTrip } from '../utils/preDeparture.js'
 import { openNavigation } from '../utils/maps.js'
 import { STATUS, makeLegId } from '../engine/models.js'
 import { getProfile, profileCopy } from '../utils/tripProfile.js'
@@ -96,18 +97,38 @@ export default function NowScreen() {
     )
   }
 
+  const preDepartureTrip = findPreDepartureTrip(trips, new Date())
+
   return (
-    <div className="flex flex-col h-full px-4 pt-6">
+    <div className="flex flex-col h-full px-4 pt-6 overflow-y-auto pb-4">
       {sessionExpiredNotice && (
         <SessionExpiredNotice onDismiss={() => setSessionExpiredNotice(false)} />
       )}
-      <h2 className="text-xl font-bold text-white mb-2">No active trip</h2>
-      <p className="text-surface-500 text-sm mb-6">Pick a trip to start tracking.</p>
-      <div className="space-y-3">
-        {trips.map(trip => (
-          <TripStartCard key={trip.id} trip={trip} />
-        ))}
-      </div>
+      {preDepartureTrip ? (
+        <>
+          <PreDepartureCard trip={preDepartureTrip} />
+          {trips.length > 1 && (
+            <div className="mt-5">
+              <p className="text-xs text-surface-500 uppercase tracking-wider mb-2">Other trips</p>
+              <div className="space-y-3">
+                {trips
+                  .filter(t => t.id !== preDepartureTrip.id)
+                  .map(t => <TripStartCard key={t.id} trip={t} />)}
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          <h2 className="text-xl font-bold text-white mb-2">No active trip</h2>
+          <p className="text-surface-500 text-sm mb-6">Pick a trip to start tracking.</p>
+          <div className="space-y-3">
+            {trips.map(t => (
+              <TripStartCard key={t.id} trip={t} />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -1165,6 +1186,107 @@ function UpcomingRow({ entry, trip }) {
       <span className="flex-1 text-sm text-white truncate">{entry.checkpointName}</span>
       <span className="font-mono text-sm text-surface-500">{timeLabel}</span>
       {entry.status === 'at_risk' && <AlertTriangle size={14} className="text-status-at_risk" />}
+    </Card>
+  )
+}
+
+// ============================================================
+// PRE-DEPARTURE CARD
+// Shown on NowScreen when a trip is configured but not yet started.
+// Uses the REAL wall clock for the countdown (not trip.startTime).
+// Planning-mode timeline provides buffer context (unchanged engine behavior).
+// ============================================================
+
+function PreDepartureCard({ trip }) {
+  const { timeline } = useTimeline(trip.id)
+  const startTrip    = useSessionStore(s => s.startTrip)
+  const openTrip     = useUIStore(s => s.openTrip)
+
+  const [realNow, setRealNow] = useState(() => new Date())
+  useEffect(() => {
+    const id = setInterval(() => setRealNow(new Date()), 30_000)
+    return () => clearInterval(id)
+  }, [])
+
+  const departureTime = parseTimeOnDate(trip.startTime, new Date(trip.date + 'T12:00:00'))
+  const countdownMins = departureTime ? Math.round((departureTime - realNow) / 60000) : null
+
+  const isOverdue = countdownMins !== null && countdownMins < 0
+  const isUrgent  = countdownMins !== null && countdownMins >= 0 && countdownMins < 10
+  const isTight   = countdownMins !== null && countdownMins >= 10 && countdownMins < 30
+
+  const countdownColor = isOverdue || isUrgent
+    ? 'text-status-at_risk'
+    : isTight
+    ? 'text-status-tight'
+    : 'text-status-ok'
+
+  const totalBuffer     = timeline?.totalBufferMins ?? null
+  const tripStatus      = timeline?.tripStatus      ?? 'pending'
+  const hasUncertainETA = timeline?.entries?.some(
+    e => e.etaUncertain && e.status !== 'completed' && e.status !== 'skipped'
+  ) ?? false
+
+  const bufferColor = tripStatus === 'at_risk' || tripStatus === 'missed'
+    ? 'text-status-at_risk'
+    : tripStatus === 'tight'
+    ? 'text-status-tight'
+    : tripStatus === 'ok'
+    ? 'text-status-ok'
+    : 'text-surface-400'
+
+  return (
+    <Card className="px-4 py-5">
+      {/* Trip context */}
+      <p className="text-xs text-surface-500 uppercase tracking-wider mb-0.5">
+        {formatDate(trip.date)}
+      </p>
+      <h2 className="text-white font-semibold text-base leading-tight truncate mb-5">
+        {trip.title}
+      </h2>
+
+      {/* Leave by — primary headline */}
+      <p className="text-xs text-surface-500 uppercase tracking-wider mb-1.5">Leave by</p>
+      <div className="flex items-baseline gap-3 mb-3">
+        <span className="font-mono text-4xl font-bold text-white leading-none">
+          {formatTime(departureTime)}
+        </span>
+        {countdownMins !== null && (
+          <span className={`text-sm font-medium ${countdownColor}`}>
+            {formatCountdown(countdownMins)}
+          </span>
+        )}
+      </div>
+
+      {/* Buffer / ETA context */}
+      <div className="mb-5 min-h-[16px]">
+        {hasUncertainETA ? (
+          <p className="text-xs text-surface-500">
+            Add travel time in plan to see your ETA
+          </p>
+        ) : totalBuffer !== null ? (
+          <p className={`text-xs font-medium ${bufferColor}`}>
+            {totalBuffer >= 0
+              ? `+${totalBuffer} min buffer at destination`
+              : `${Math.abs(totalBuffer)} min past the safe window`}
+          </p>
+        ) : null}
+      </div>
+
+      {/* Actions */}
+      <div className="flex gap-2.5">
+        <Button
+          variant="primary"
+          className="flex-1"
+          onClick={() => startTrip(trip.id)}
+        >
+          <Play size={15} />
+          Start trip
+        </Button>
+        <Button variant="ghost" onClick={() => openTrip(trip.id)}>
+          View plan
+        </Button>
+      </div>
     </Card>
   )
 }

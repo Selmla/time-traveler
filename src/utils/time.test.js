@@ -5,7 +5,7 @@
 // ============================================================
 
 import { describe, it, expect } from 'vitest'
-import { parseTime, parseTimeOnDate } from './time.js'
+import { parseTime, parseTimeOnDate, formatCountdown } from './time.js'
 
 // ============================================================
 // parseTimeOnDate — regression tests for UTC-negative offset bug
@@ -61,6 +61,44 @@ describe('parseTimeOnDate', () => {
 // The tests below illustrate WHY parseTimeOnDate is preferred
 // for cases where the correct local calendar date matters.
 // ============================================================
+
+// ============================================================
+// formatCountdown
+// ============================================================
+
+describe('formatCountdown', () => {
+  it('shows "in X min" for minutes under an hour', () => {
+    expect(formatCountdown(26)).toBe('in 26 min')
+    expect(formatCountdown(1)).toBe('in 1 min')
+    expect(formatCountdown(59)).toBe('in 59 min')
+  })
+
+  it('shows hours only when no remainder', () => {
+    expect(formatCountdown(60)).toBe('in 1h')
+    expect(formatCountdown(120)).toBe('in 2h')
+  })
+
+  it('shows hours and minutes when remainder', () => {
+    expect(formatCountdown(90)).toBe('in 1h 30m')
+    expect(formatCountdown(65)).toBe('in 1h 5m')
+  })
+
+  it('shows "depart now" at 0', () => {
+    expect(formatCountdown(0)).toBe('depart now')
+    expect(formatCountdown(-0)).toBe('depart now')
+  })
+
+  it('shows "X min ago" for negative (overdue)', () => {
+    expect(formatCountdown(-1)).toBe('1 min ago')
+    expect(formatCountdown(-26)).toBe('26 min ago')
+  })
+
+  it('rounds fractional minutes', () => {
+    expect(formatCountdown(26.4)).toBe('in 26 min')
+    expect(formatCountdown(26.6)).toBe('in 27 min')
+    expect(formatCountdown(-0.3)).toBe('depart now')
+  })
+})
 
 describe('parseTime (string-based)', () => {
   it('parses HH:MM + YYYY-MM-DD into a Date', () => {

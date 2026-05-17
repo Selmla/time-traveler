@@ -1,9 +1,9 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Plus, ChevronLeft, Play, ArrowUp, ArrowDown, Trash2, Edit3, Clock, Lock, AlertTriangle, MapPin } from 'lucide-react'
 import { useTripStore, useSessionStore, useUIStore } from '../stores/index.js'
 import { useTimeline } from '../hooks/useTimeline.js'
 import { CHECKPOINT_KIND, DEPARTURE_MODE, DEFAULT_BUFFERS, TRAVEL_MODE, createCheckpoint, makeLegId } from '../engine/models.js'
-import { formatDate, formatTime, diffMinutes, parseTimeOnDate } from '../utils/time.js'
+import { formatDate, formatTime, diffMinutes, parseTimeOnDate, formatCountdown } from '../utils/time.js'
 import { Card, Button, StatusDot, CheckpointTypeIcon, EmptyState } from '../components/ui/index.jsx'
 import TimelineView from '../components/timeline/TimelineView.jsx'
 
@@ -66,14 +66,17 @@ export default function PlanScreen() {
         </div>
 
         {!isThisActive && (
-          <Button
-            variant="primary"
-            className="w-full mt-3"
-            onClick={() => setConfirmingStart(true)}
-          >
-            <Play size={16} />
-            Start this trip
-          </Button>
+          <>
+            <Button
+              variant="primary"
+              className="w-full mt-3"
+              onClick={() => setConfirmingStart(true)}
+            >
+              <Play size={16} />
+              Start this trip
+            </Button>
+            <PreDepartureChip trip={trip} />
+          </>
         )}
         {isThisActive && (
           <>
@@ -162,6 +165,44 @@ export default function PlanScreen() {
           onCancel={() => setConfirmingStart(false)}
         />
       )}
+    </div>
+  )
+}
+
+// ============================================================
+// PRE-DEPARTURE CHIP — compact "Leave by" indicator in plan header
+// Ticks against the real wall clock. Renders null once departure passes.
+// ============================================================
+
+function PreDepartureChip({ trip }) {
+  const [realNow, setRealNow] = useState(() => new Date())
+  useEffect(() => {
+    const id = setInterval(() => setRealNow(new Date()), 30_000)
+    return () => clearInterval(id)
+  }, [])
+
+  const departureTime = parseTimeOnDate(trip.startTime, new Date(trip.date + 'T12:00:00'))
+  if (!departureTime || departureTime <= realNow) return null
+
+  const countdownMins = Math.round((departureTime - realNow) / 60000)
+  const isUrgent = countdownMins < 10
+  const isTight  = countdownMins >= 10 && countdownMins < 30
+
+  return (
+    <div className="flex items-center gap-1.5 text-xs text-surface-400 mt-2">
+      <Clock size={11} className="flex-shrink-0" />
+      <span>
+        Leave by{' '}
+        <span className="font-mono text-surface-200 font-medium">{formatTime(departureTime)}</span>
+        {' · '}
+        <span className={
+          isUrgent ? 'text-status-at_risk font-medium'
+          : isTight ? 'text-status-tight font-medium'
+          : 'text-surface-400'
+        }>
+          {formatCountdown(countdownMins)}
+        </span>
+      </span>
     </div>
   )
 }
