@@ -197,3 +197,98 @@ describe('simulateDelay — departure_deadline', () => {
     expect(simulated.entries[0].bufferMinutes).toBe(25)
   })
 })
+
+// ============================================================
+// Opening hours — plannedArrival regression
+// Bug: plannedArrival was set to opensAt, so arriving at 14:00
+// at a place open 10:00–18:00 produced delay=+240 min even
+// though the visit was comfortably within the window.
+// Fix: plannedArrival=null; delayBaseline=latestSafeArrival.
+// ============================================================
+
+function makeTripWithMuseum({ startTime = '12:00', travelToMuseum = 120, opensAt = '10:00', closesAt = '18:00', minimumDuration = 30 } = {}) {
+  return {
+    id:           'trip-museum',
+    title:        'Museum Day',
+    date:         '2026-05-15',
+    startTime,
+    defaultBuffer: 15,
+    minBuffer:     5,
+    origin: {
+      name:              'Hotel',
+      address:           '',
+      travelTimeToFirst: travelToMuseum,
+    },
+    checkpoints: [{
+      id:              'museum',
+      name:            'City Museum',
+      kind:            CHECKPOINT_KIND.OPENING_HOURS,
+      opensAt,
+      closesAt,
+      desiredDuration:  90,
+      minimumDuration,
+      isSkippable:      true,
+    }],
+  }
+}
+
+describe('opening_hours — plannedArrival regression', () => {
+  it('delay is 0 when arriving well within opening hours (regression: was 240 min)', () => {
+    // Depart 12:00, 120 min travel → arrive 14:00. Museum open 10:00–18:00.
+    // Before fix: delay = 14:00 − 10:00 = 240 min (wrong).
+    // After fix: delay = 0 (14:00 is before latestSafeArrival 17:30).
+    const trip = makeTripWithMuseum({ startTime: '12:00', travelToMuseum: 120 })
+    const now  = new Date(2026, 4, 15, 12, 0, 0)
+
+    const { entries } = calculateTimeline(trip, {}, {}, now, false, null)
+    expect(entries[0].delay).toBe(0)
+  })
+
+  it('plannedArrival is null for opening_hours checkpoints', () => {
+    const trip = makeTripWithMuseum()
+    const now  = new Date(2026, 4, 15, 12, 0, 0)
+
+    const { entries } = calculateTimeline(trip, {}, {}, now, false, null)
+    expect(entries[0].plannedArrival).toBeNull()
+  })
+
+  it('bufferMinutes reflects time until latestSafeArrival (closesAt − minimumDuration)', () => {
+    // Arrive 14:00, closesAt 18:00, minimumDuration 30 → latestSafe 17:30 → buffer = 210 min
+    const trip = makeTripWithMuseum({ startTime: '12:00', travelToMuseum: 120 })
+    const now  = new Date(2026, 4, 15, 12, 0, 0)
+
+    const { entries } = calculateTimeline(trip, {}, {}, now, false, null)
+    expect(entries[0].bufferMinutes).toBe(210)
+  })
+
+  it('ARRIVES_BEFORE_OPEN warning fires when ETA is before opensAt', () => {
+    // Depart 06:00, 60 min travel → ETA 07:00. Museum opens 10:00 → warning expected.
+    const trip = makeTripWithMuseum({ startTime: '06:00', travelToMuseum: 60 })
+    const now  = new Date(2026, 4, 15, 6, 0, 0)
+
+    const { entries } = calculateTimeline(trip, {}, {}, now, false, null)
+    const warning = entries[0].warnings?.find(w => w.type === 'ARRIVES_BEFORE_OPEN')
+    expect(warning).toBeDefined()
+    expect(warning.opensAt).toBe('10:00')
+  })
+
+  it('no ARRIVES_BEFORE_OPEN warning when arriving after opensAt', () => {
+    // Arrive 14:00 — well after 10:00 opening.
+    const trip = makeTripWithMuseum({ startTime: '12:00', travelToMuseum: 120 })
+    const now  = new Date(2026, 4, 15, 12, 0, 0)
+
+    const { entries } = calculateTimeline(trip, {}, {}, now, false, null)
+    const warning = entries[0].warnings?.find(w => w.type === 'ARRIVES_BEFORE_OPEN')
+    expect(warning).toBeUndefined()
+  })
+
+  it('TOO_LATE_FOR_VISIT warning fires when arriving past latestSafeArrival', () => {
+    // Depart 17:00, 60 min travel → ETA 18:00. latestSafe = 17:30 → too late.
+    const trip = makeTripWithMuseum({ startTime: '17:00', travelToMuseum: 60 })
+    const now  = new Date(2026, 4, 15, 17, 0, 0)
+
+    const { entries } = calculateTimeline(trip, {}, {}, now, false, null)
+    const warning = entries[0].warnings?.find(w => w.type === 'TOO_LATE_FOR_VISIT')
+    expect(warning).toBeDefined()
+  })
+})

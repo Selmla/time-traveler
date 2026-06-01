@@ -178,7 +178,7 @@ function buildEntry(cp, index, runningTime, trip, session) {
   } else if (kind === CHECKPOINT_KIND.OPENING_HOURS) {
     const opensAt  = cp.opensAt  ? parseTimeOnDate(cp.opensAt,  refDate) : null
     const closesAt = cp.closesAt ? parseTimeOnDate(cp.closesAt, refDate) : null
-    plannedArrival = opensAt
+    plannedArrival = null
     deadlineTime   = closesAt
     if (closesAt) {
       latestSafeArrival = addMinutes(closesAt, -(cp.minimumDuration || 30))
@@ -384,8 +384,9 @@ function generateWarnings(entries, trip) {
     }
 
     if (cp.kind === CHECKPOINT_KIND.OPENING_HOURS && entry.estimatedArrival) {
-      if (cp.opensAt && entry.plannedArrival) {
-        if (entry.estimatedArrival < entry.plannedArrival) {
+      if (cp.opensAt) {
+        const opensAtDate = parseTimeOnDate(cp.opensAt, new Date(entry.estimatedArrival))
+        if (opensAtDate && entry.estimatedArrival < opensAtDate) {
           warnings.push({ type: WARNING_TYPE.ARRIVES_BEFORE_OPEN, opensAt: cp.opensAt })
         }
       }
