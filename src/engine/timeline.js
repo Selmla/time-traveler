@@ -165,7 +165,8 @@ function buildEntry(cp, index, runningTime, trip, session) {
     estimatedDeparture = actualDeparture || addMinutes(estimatedArrival, stayDuration)
 
   } else if (kind === CHECKPOINT_KIND.DEPARTURE_DEADLINE) {
-    const depTime = cp.departureTime ? parseTimeOnDate(cp.departureTime, refDate) : null
+    let depTime = cp.departureTime ? parseTimeOnDate(cp.departureTime, refDate) : null
+    if (depTime && runningTime && runningTime - depTime > 12 * 60 * 60000) depTime = addMinutes(depTime, 24 * 60)
     deadlineTime       = depTime
     estimatedDeparture = depTime // ferry/train/flight departs at fixed time regardless
     if (depTime) {
@@ -176,8 +177,10 @@ function buildEntry(cp, index, runningTime, trip, session) {
     }
 
   } else if (kind === CHECKPOINT_KIND.OPENING_HOURS) {
-    const opensAt  = cp.opensAt  ? parseTimeOnDate(cp.opensAt,  refDate) : null
-    const closesAt = cp.closesAt ? parseTimeOnDate(cp.closesAt, refDate) : null
+    let opensAt  = cp.opensAt  ? parseTimeOnDate(cp.opensAt,  refDate) : null
+    let closesAt = cp.closesAt ? parseTimeOnDate(cp.closesAt, refDate) : null
+    if (opensAt  && runningTime && runningTime - opensAt  > 12 * 60 * 60000) opensAt  = addMinutes(opensAt,  24 * 60)
+    if (closesAt && runningTime && runningTime - closesAt > 12 * 60 * 60000) closesAt = addMinutes(closesAt, 24 * 60)
     plannedArrival = null
     deadlineTime   = closesAt
     if (closesAt) {
@@ -196,7 +199,8 @@ function buildEntry(cp, index, runningTime, trip, session) {
     )
 
   } else if (kind === CHECKPOINT_KIND.FIXED_APPOINTMENT) {
-    const apptTime = cp.appointmentTime ? parseTimeOnDate(cp.appointmentTime, refDate) : null
+    let apptTime = cp.appointmentTime ? parseTimeOnDate(cp.appointmentTime, refDate) : null
+    if (apptTime && runningTime && runningTime - apptTime > 12 * 60 * 60000) apptTime = addMinutes(apptTime, 24 * 60)
     deadlineTime   = apptTime
     if (apptTime) {
       latestSafeArrival  = addMinutes(apptTime, -(cp.arrivalBuffer || 15))
