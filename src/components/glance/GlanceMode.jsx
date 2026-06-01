@@ -29,6 +29,7 @@ function deadlineLabel(kind, mode) {
     return labels[mode] ?? 'Departs'
   }
   if (kind === 'fixed_appointment') return 'Appointment'
+  if (kind === 'opening_hours')    return 'Closes'
   return 'Deadline'
 }
 
