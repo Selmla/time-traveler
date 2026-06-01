@@ -346,7 +346,7 @@ function TimelineRow({ entry, checkpoint, isLast, interactive, onMarkArrived, on
                 entry.status !== STATUS.COMPLETED && entry.status !== STATUS.SKIPPED &&
                 (entry.estimatedDeparture || nextDeadline) && (
                   <div className="space-y-1 text-xs">
-                    {entry.estimatedDeparture && (
+                    {entry.estimatedDeparture && !isLast && (
                       <div className="flex justify-between">
                         <span className="text-surface-500">Leave by</span>
                         <span className="font-mono text-surface-300">{formatTime(entry.estimatedDeparture)}</span>

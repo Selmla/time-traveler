@@ -474,6 +474,9 @@ function DashboardView({ trip, timeline, next, nextCritical, now, profile, onMar
   // Show nextCritical separately only when it's a different stop from next
   const showNextCritical = nextCritical && nextCritical.checkpointId !== next.checkpointId
 
+  const lastActiveEntry = timeline.entries.filter(e => e.status !== STATUS.SKIPPED).at(-1)
+  const isLastStop = lastActiveEntry?.checkpointId === next.checkpointId
+
   return (
     <div className="space-y-4">
       {/* Current leg context — shown while traveling, hidden when arrived at a stop */}
@@ -491,6 +494,7 @@ function DashboardView({ trip, timeline, next, nextCritical, now, profile, onMar
           now={now}
           profile={profile}
           consequence={timeline.consequence}
+          isLastStop={isLastStop}
           onMarkArrived={onMarkArrived}
           onMarkDeparted={onMarkDeparted}
           onMarkSkipped={onMarkSkipped}
@@ -529,7 +533,7 @@ function DashboardView({ trip, timeline, next, nextCritical, now, profile, onMar
 // NEXT CHECKPOINT CARD — Kind-aware, state-aware
 // ============================================================
 
-function NextCheckpointCard({ entry, checkpoint: cp, now, profile, consequence, onMarkArrived, onMarkDeparted, onMarkSkipped, onAddDelay, onOpenWhatIf }) {
+function NextCheckpointCard({ entry, checkpoint: cp, now, profile, consequence, isLastStop, onMarkArrived, onMarkDeparted, onMarkSkipped, onAddDelay, onOpenWhatIf }) {
   const kind      = entry.kind
   const eta       = entry.etaUncertain ? '?' : entry.estimatedArrival ? formatTime(entry.estimatedArrival) : '--:--'
   const isArrived = entry.status === STATUS.ARRIVED
@@ -571,6 +575,7 @@ function NextCheckpointCard({ entry, checkpoint: cp, now, profile, consequence, 
           checkpoint={cp}
           consequence={consequence}
           profile={profile}
+          isLastStop={isLastStop}
           onAddDelay={onAddDelay}
           onMarkDeparted={onMarkDeparted}
         />
@@ -585,7 +590,7 @@ function NextCheckpointCard({ entry, checkpoint: cp, now, profile, consequence, 
         ) : kind === 'fixed_appointment' ? (
           <AppointmentTimingBlock entry={entry} checkpoint={cp} eta={eta} />
         ) : (
-          <NormalTimingBlock entry={entry} eta={eta} />
+          <NormalTimingBlock entry={entry} eta={eta} isLastStop={isLastStop} />
         )
       )}
 
@@ -675,7 +680,7 @@ function NextCheckpointCard({ entry, checkpoint: cp, now, profile, consequence, 
 // STOP TIMER — shown when arrived but not yet departed
 // ============================================================
 
-function StopTimer({ entry, checkpoint: cp, consequence, profile, onAddDelay, onMarkDeparted }) {
+function StopTimer({ entry, checkpoint: cp, consequence, profile, isLastStop, onAddDelay, onMarkDeparted }) {
   const [now, setNow] = useState(() => new Date())
 
   const isUrgent = entry.status === STATUS.AT_RISK || entry.status === STATUS.TIGHT
@@ -740,7 +745,7 @@ function StopTimer({ entry, checkpoint: cp, consequence, profile, onAddDelay, on
           </span>
         </div>
       )}
-      {leaveBy && !isOverTime && (
+      {leaveBy && !isOverTime && !isLastStop && (
         <div className="flex justify-between">
           <span className="text-xs text-surface-500">Leave by</span>
           <span className="font-mono text-sm text-surface-300">{leaveBy}</span>
@@ -903,7 +908,7 @@ function AppointmentTimingBlock({ entry, checkpoint: cp, eta }) {
   )
 }
 
-function NormalTimingBlock({ entry, eta }) {
+function NormalTimingBlock({ entry, eta, isLastStop }) {
   const planned = entry.plannedArrival    ? formatTime(entry.plannedArrival)    : null
   const departs = entry.estimatedDeparture ? formatTime(entry.estimatedDeparture) : null
   const delta   = entry.delay || 0
@@ -914,7 +919,7 @@ function NormalTimingBlock({ entry, eta }) {
       {planned && delta !== 0 && (
         <TimeBig label="Planned" time={planned} className="opacity-50" />
       )}
-      {departs && (
+      {departs && !isLastStop && (
         <TimeBig label="Depart" time={departs} />
       )}
     </div>
