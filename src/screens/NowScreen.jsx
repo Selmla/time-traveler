@@ -875,7 +875,7 @@ function OpeningHoursTimingBlock({ entry, checkpoint: cp, eta }) {
       )}
       {buffer !== null && (
         <p className={`text-xs font-mono ${buffer >= 20 ? 'text-status-ok' : buffer >= 0 ? 'text-status-tight' : 'text-status-at_risk'}`}>
-          {buffer >= 0 ? `${buffer}m before close cutoff` : `${Math.abs(buffer)}m past useful arrival`}
+          {buffer >= 0 ? `${buffer}m before closing` : `${Math.abs(buffer)}m past useful arrival`}
         </p>
       )}
     </div>
